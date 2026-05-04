@@ -152,7 +152,7 @@ export default function TouristTaxPage() {
                           <TableCell sx={{ fontWeight: 600 }} align="right">Nuits</TableCell>
                           <TableCell sx={{ fontWeight: 600 }} align="right">Adultes</TableCell>
                           <TableCell sx={{ fontWeight: 600 }} align="right">Taxe séjour (client)</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }} align="right">Montant séjour (hébergement)</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }} align="right">Montant hébergement HT</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
