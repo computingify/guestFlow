@@ -119,9 +119,9 @@ function getReservationAuditSnapshotFromPayload(payload, quote) {
     checkInTime: payload.checkInTime || null,
     checkOutTime: payload.checkOutTime || null,
     platform: payload.platform || null,
-    totalPrice: Number(quote.totalPrice || 0),
+    totalPrice: quote.totalPrice == null ? null : Number(quote.totalPrice),
     discountPercent: Number(payload.discountPercent || 0),
-    finalPrice: Number(quote.finalPrice || 0),
+    finalPrice: quote.finalPrice == null ? null : Number(quote.finalPrice),
     depositAmount: Number(quote.depositAmount || 0),
     depositDueDate: quote.depositDueDate || payload.depositDueDate || null,
     balanceAmount: Number(quote.balanceAmount || 0),
@@ -718,7 +718,7 @@ router.put('/:id', (req, res) => {
 
   const beforeAuditSnapshot = getReservationAuditSnapshotFromDb(Number(req.params.id));
 
-  const existingReservation = db.prepare('SELECT propertyId, sourceType, icalSyncLocked FROM reservations WHERE id = ?').get(Number(req.params.id));
+  const existingReservation = db.prepare('SELECT propertyId, sourceType, icalSyncLocked, totalPrice, finalPrice FROM reservations WHERE id = ?').get(Number(req.params.id));
   const canReuseLockedPricing = !refreshPricingToCurrent
     && existingReservation
     && Number(existingReservation.propertyId) === Number(propertyId);
@@ -748,6 +748,19 @@ router.put('/:id', (req, res) => {
     lockedOptionLines: lockedPricing.lockedOptionLines,
     lockedResourceLines: lockedPricing.lockedResourceLines,
   });
+
+  const shouldKeepNullPrice = existingReservation
+    && String(existingReservation.sourceType || '') === 'ical'
+    && existingReservation.totalPrice == null
+    && existingReservation.finalPrice == null
+    && (customPrice === '' || customPrice == null);
+
+  if (shouldKeepNullPrice) {
+    quote.totalPrice = null;
+    quote.finalPrice = null;
+    quote.discountPercent = 0;
+  }
+
   if (quote.error) {
     return res.status(quote.status || 400).json({ error: quote.error });
   }
