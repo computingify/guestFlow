@@ -113,6 +113,7 @@ export default function ReservationPage() {
   const [minNightsState, setMinNightsState] = useState({ breached: false, required: 0, nights: 0 });
   const [useCurrentPricing, setUseCurrentPricing] = useState(false);
   const [showNightlyBreakdown, setShowNightlyBreakdown] = useState(false);
+  const [showVatDetail, setShowVatDetail] = useState(false);
   const [offeredOptionIds, setOfferedOptionIds] = useState(new Set());
   const [babyBedAvailability, setBabyBedAvailability] = useState({ totalQuantity: 0, reserved: 0, available: null });
   const [existingReservationLocked, setExistingReservationLocked] = useState(false);
@@ -2339,63 +2340,77 @@ export default function ReservationPage() {
                   {/* Détails TVA */}
                   <Divider />
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-                    <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                      Détails TVA
-                    </Typography>
-                    
-                    {/* Accommodation VAT */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
-                      <Typography variant="caption" color="text.secondary">
-                        Hébergement (HT + TVA {vatPercentageAccommodation}%)
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        Détails TVA
                       </Typography>
-                      <Typography variant="caption" sx={{ fontWeight: 500 }}>
-                        {accommodationNetPrice.toFixed(2)}€ + {accommodationVatAmount.toFixed(2)}€
-                      </Typography>
+                      <Button
+                        size="small"
+                        variant="text"
+                        onClick={() => setShowVatDetail((prev) => !prev)}
+                        sx={{ textTransform: 'none', p: 0, minWidth: 0, fontSize: 12 }}
+                      >
+                        {showVatDetail ? 'Masquer' : 'Afficher'}
+                      </Button>
                     </Box>
 
-                    {/* Options VAT */}
-                    {optionsTotal > 0 && (
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
-                        <Typography variant="caption" color="text.secondary">
-                          Options (HT + TVA {vatPercentageOptions}%)
-                        </Typography>
-                        <Typography variant="caption" sx={{ fontWeight: 500 }}>
-                          {optionsNetPrice.toFixed(2)}€ + {optionsVatAmount.toFixed(2)}€
-                        </Typography>
-                      </Box>
+                    {showVatDetail && (
+                      <>
+                        {/* Accommodation VAT */}
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
+                          <Typography variant="caption" color="text.secondary">
+                            Hébergement (HT + TVA {vatPercentageAccommodation}%)
+                          </Typography>
+                          <Typography variant="caption" sx={{ fontWeight: 500 }}>
+                            {accommodationNetPrice.toFixed(2)}€ + {accommodationVatAmount.toFixed(2)}€
+                          </Typography>
+                        </Box>
+
+                        {/* Options VAT */}
+                        {optionsTotal > 0 && (
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
+                            <Typography variant="caption" color="text.secondary">
+                              Options (HT + TVA {vatPercentageOptions}%)
+                            </Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 500 }}>
+                              {optionsNetPrice.toFixed(2)}€ + {optionsVatAmount.toFixed(2)}€
+                            </Typography>
+                          </Box>
+                        )}
+
+                        {/* Resources VAT */}
+                        {resourcesTotal > 0 && (
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
+                            <Typography variant="caption" color="text.secondary">
+                              Ressources (HT + TVA {vatPercentageResources}%)
+                            </Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 500 }}>
+                              {resourcesNetPrice.toFixed(2)}€ + {resourcesVatAmount.toFixed(2)}€
+                            </Typography>
+                          </Box>
+                        )}
+
+                        {/* Taxe de séjour (pas de TVA) */}
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
+                          <Typography variant="caption" color="text.secondary">
+                            Taxe de séjour
+                          </Typography>
+                          <Typography variant="caption" sx={{ fontWeight: 500 }}>
+                            {touristTaxTotal.toFixed(2)}€
+                          </Typography>
+                        </Box>
+
+                        {/* Total HT / TVA */}
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 0.5, borderTop: '1px solid rgba(0,0,0,0.1)' }}>
+                          <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                            Total HT / TVA
+                          </Typography>
+                          <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                            {totalNetPrice.toFixed(2)}€ / {totalVatAmount.toFixed(2)}€
+                          </Typography>
+                        </Box>
+                      </>
                     )}
-
-                    {/* Resources VAT */}
-                    {resourcesTotal > 0 && (
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
-                        <Typography variant="caption" color="text.secondary">
-                          Ressources (HT + TVA {vatPercentageResources}%)
-                        </Typography>
-                        <Typography variant="caption" sx={{ fontWeight: 500 }}>
-                          {resourcesNetPrice.toFixed(2)}€ + {resourcesVatAmount.toFixed(2)}€
-                        </Typography>
-                      </Box>
-                    )}
-
-                    {/* Taxe de séjour (pas de TVA) */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
-                      <Typography variant="caption" color="text.secondary">
-                        Taxe de séjour
-                      </Typography>
-                      <Typography variant="caption" sx={{ fontWeight: 500 }}>
-                        {touristTaxTotal.toFixed(2)}€
-                      </Typography>
-                    </Box>
-
-                    {/* Total HT / TVA */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 0.5, borderTop: '1px solid rgba(0,0,0,0.1)' }}>
-                      <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                        Total HT / TVA
-                      </Typography>
-                      <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                        {totalNetPrice.toFixed(2)}€ / {totalVatAmount.toFixed(2)}€
-                      </Typography>
-                    </Box>
                   </Box>
 
                   {/* Taxe de séjour (ligne séparée) */}
