@@ -208,7 +208,8 @@ router.get('/tourist-tax', (req, res) => {
       r.startDate,
       r.endDate,
       r.adults,
-      COALESCE(p.touristTaxPerDayPerPerson, 0) as taxRate,
+      COALESCE(r.touristTaxRate, COALESCE(p.touristTaxPerDayPerPerson, 0), 0) as taxRate,
+      COALESCE(r.touristTaxTotal, 0) as storedTaxAmount,
       MAX(0,
         CAST(
           JULIANDAY(r.endDate) - JULIANDAY(r.startDate)
@@ -246,6 +247,7 @@ router.get('/tourist-tax', (req, res) => {
       const adults = Number(row.adults || 0);
       const taxRate = Math.max(0, Number(row.taxRate || 0));
       const taxMeta = computeTouristTaxAmount({ nightsCount, adults, taxRate });
+      const taxAmount = Number(row.storedTaxAmount || 0) > 0 ? Number(row.storedTaxAmount || 0) : taxMeta.taxAmount;
       const accommodationMeta = computeAccommodationAmountAfterDiscount({
         accommodationRawAmount: row.accommodationRawAmount,
         optionsTotal: row.optionsTotal,
@@ -265,7 +267,7 @@ router.get('/tourist-tax', (req, res) => {
         nightsCount,
         adultNights: taxMeta.adultNights,
         taxRate,
-        taxAmount: taxMeta.taxAmount,
+        taxAmount,
         accommodationRawAmount: accommodationMeta.accommodationRawAmount,
         reductionAmount: accommodationMeta.reductionAmount,
         accommodationAmount: accommodationMeta.accommodationAmount,

@@ -132,6 +132,8 @@ db.exec(`
     checkOutTime TEXT DEFAULT '10:00',
     platform TEXT DEFAULT 'direct',
     totalPrice REAL,
+    touristTaxRate REAL DEFAULT 0,
+    touristTaxTotal REAL DEFAULT 0,
     discountPercent REAL DEFAULT 0,
     finalPrice REAL,
     depositAmount REAL DEFAULT 0,
@@ -331,6 +333,12 @@ if (!cols.includes('blocksPreviousNight')) {
 }
 if (!cols.includes('blocksNextNight')) {
   db.exec("ALTER TABLE reservations ADD COLUMN blocksNextNight INTEGER NOT NULL DEFAULT 0");
+}
+if (!cols.includes('touristTaxRate')) {
+  db.exec("ALTER TABLE reservations ADD COLUMN touristTaxRate REAL DEFAULT 0");
+}
+if (!cols.includes('touristTaxTotal')) {
+  db.exec("ALTER TABLE reservations ADD COLUMN touristTaxTotal REAL DEFAULT 0");
 }
 const propCols = db.prepare("PRAGMA table_info(properties)").all().map(c => c.name);
 if (!propCols.includes('defaultCautionAmount')) {

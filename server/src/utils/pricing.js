@@ -494,6 +494,7 @@ function calculateReservationQuote({
   balancePaid,
   depositAmount,
   balanceAmount,
+  offeredOptionIds,
   lockedOptionUnits,
   lockedResourceUnits,
   lockedNightlyBreakdown,
@@ -559,6 +560,7 @@ function calculateReservationQuote({
   const resourcesById = new Map(getApplicableResources(db, propertyId).map((resource) => [Number(resource.id), resource]));
   const optionUnitOverrides = lockedOptionUnits || {};
   const resourceUnitOverrides = lockedResourceUnits || {};
+  const offeredOptionIdSet = new Set((Array.isArray(offeredOptionIds) ? offeredOptionIds : []).map((id) => Number(id)));
   const lockedOptionsById = new Map(
     (Array.isArray(lockedOptionLines) ? lockedOptionLines : [])
       .map((line) => [Number(line.optionId), line])
@@ -597,7 +599,7 @@ function calculateReservationQuote({
         unitPrice: merged.unitPrice,
         billedUnits: merged.billedUnits,
         priceType,
-        totalPrice: merged.totalPrice,
+        totalPrice: offeredOptionIdSet.has(optionId) ? 0 : merged.totalPrice,
       };
     })
     .filter(Boolean);
@@ -625,7 +627,7 @@ function calculateReservationQuote({
         ...line,
         unitPrice: merged.unitPrice,
         billedUnits: merged.billedUnits,
-        totalPrice: merged.totalPrice,
+        totalPrice: offeredOptionIdSet.has(Number(line.optionId)) ? 0 : merged.totalPrice,
       };
     })
     .filter((line) => !selectedOptionIds.has(Number(line.optionId)));
@@ -676,6 +678,18 @@ function calculateReservationQuote({
       : subtotal * (1 - normalizedDiscountPercent / 100)
   );
   const discountAmount = roundMoney(Math.max(0, subtotal - finalPrice));
+  const accommodationAdjustedPrice = roundMoney(
+    Number.isFinite(customFinalPrice)
+      ? customFinalPrice
+      : Number(totalPrice || 0) * (1 - normalizedDiscountPercent / 100)
+  );
+  const accommodationDiscountAmount = roundMoney(Math.max(0, Number(totalPrice || 0) - accommodationAdjustedPrice));
+  const accommodationDeltaAmount = roundMoney(Math.abs(Number(totalPrice || 0) - accommodationAdjustedPrice));
+  const accommodationDeltaType = accommodationAdjustedPrice < Number(totalPrice || 0)
+    ? 'reduction'
+    : accommodationAdjustedPrice > Number(totalPrice || 0)
+      ? 'increase'
+      : 'none';
 
   // VAT calculations (all prices are TTC - VAT already included)
   const vatPercentageAccommodation = Number(property.vatPercentageAccommodation || 20);
@@ -745,6 +759,10 @@ function calculateReservationQuote({
     vatPercentageAccommodation,
     vatPercentageOptions,
     vatPercentageResources,
+    accommodationAdjustedPrice,
+    accommodationDiscountAmount,
+    accommodationDeltaAmount,
+    accommodationDeltaType,
     accommodationNetPrice,
     accommodationVatAmount,
     optionsNetPrice,
