@@ -749,17 +749,10 @@ router.put('/:id', (req, res) => {
     lockedResourceLines: lockedPricing.lockedResourceLines,
   });
 
-  const shouldKeepNullPrice = existingReservation
-    && String(existingReservation.sourceType || '') === 'ical'
-    && existingReservation.totalPrice == null
-    && existingReservation.finalPrice == null
-    && (customPrice === '' || customPrice == null);
-
-  if (shouldKeepNullPrice) {
-    quote.totalPrice = null;
-    quote.finalPrice = null;
-    quote.discountPercent = 0;
-  }
+  // totalPrice always comes from server calculation
+  // customPrice/finalPrice can be manually adjusted by user
+  // No special handling needed - just use quote as-is
+  // The customPrice parameter already handles manual adjustments via calculateReservationQuote
 
   if (quote.error) {
     return res.status(quote.status || 400).json({ error: quote.error });

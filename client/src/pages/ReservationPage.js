@@ -313,13 +313,15 @@ export default function ReservationPage() {
   const applyQuoteToForm = useCallback((prev, quote, preserveBlankPrice = false) => {
     const resourceLinesById = new Map((quote.resourceLines || []).map((line) => [Number(line.resourceId), line]));
 
+    // Preserve user-manually-set customPrice: if prev.customPrice is not empty, keep it
+    // totalPrice comes from quote (server-calculated)
+    const shouldPreserveCustomPrice = prev.customPrice !== '';
+
     return {
       ...prev,
-      totalPrice: preserveBlankPrice
-        ? prev.totalPrice
-        : (quote.totalPrice == null ? '' : Number(quote.totalPrice || 0)),
-      finalPrice: preserveBlankPrice
-        ? prev.finalPrice
+      totalPrice: quote.totalPrice == null ? '' : Number(quote.totalPrice || 0),
+      finalPrice: shouldPreserveCustomPrice && prev.customPrice !== ''
+        ? Number(prev.customPrice)
         : (quote.finalPrice == null ? '' : Number(quote.finalPrice || 0)),
       depositAmount: Number(quote.depositAmount || 0),
       depositDueDate: quote.depositDueDate || '',
@@ -1191,6 +1193,13 @@ export default function ReservationPage() {
           return opt;
         });
 
+        // Le totalPrice vient toujours du serveur (quote.totalPrice)
+        // Le finalPrice peut être ajusté via customPrice ou par réduction %
+        const finalTotalPrice = quote.totalPrice;
+        const finalPrice = form.customPrice !== ''
+          ? Number(form.customPrice)
+          : quote.finalPrice;
+
         await api.updateReservation(reservationId, {
           propertyId: Number(selectedProp),
           clientId: form.clientId,
@@ -1206,9 +1215,9 @@ export default function ReservationPage() {
           checkInTime: form.checkInTime,
           checkOutTime: form.checkOutTime,
           platform: form.platform,
-          totalPrice: quote.totalPrice,
+          totalPrice: finalTotalPrice,
           discountPercent: form.discountPercent,
-          finalPrice: quote.finalPrice,
+          finalPrice: finalPrice,
           customPrice: form.customPrice,
           depositAmount: quote.depositAmount,
           depositDueDate: quote.depositDueDate,
@@ -1998,13 +2007,13 @@ export default function ReservationPage() {
                 <Card variant="outlined" sx={{ height: '100%', bgcolor: '#f7fafc', borderColor: 'divider' }}>
                   <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                     <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>
-                      Prix hébergement
+                      Prix hébergement brut
                     </Typography>
                     <Typography variant="h6" sx={{ fontWeight: 700, mt: 0.5 }}>
-                      {accommodationBasePriceDisplay ?? '—'}
+                      {accommodationBasePriceDisplay ?? '—'}€
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      Tarif brut avant remise
+                      Tarif calculé par le serveur
                     </Typography>
                   </CardContent>
                 </Card>
@@ -2014,23 +2023,47 @@ export default function ReservationPage() {
                   variant="outlined"
                   sx={{
                     height: '100%',
-                    borderColor: accommodationDiscountAmount > 0 ? 'success.main' : 'divider',
-                    bgcolor: accommodationDiscountAmount > 0 ? 'rgba(76, 175, 80, 0.08)' : '#fff',
+                    borderColor: form.customPrice !== '' ? 'info.main' : 'divider',
+                    bgcolor: form.customPrice !== '' ? 'rgba(33, 150, 243, 0.08)' : '#fff',
                   }}
                 >
                   <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                     <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>
-                      Prix remisé
+                      Prix hébergement ajusté
                     </Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 700, mt: 0.5, color: accommodationDiscountAmount > 0 ? 'success.main' : 'text.primary' }}>
-                      {accommodationDiscountedPriceDisplay ?? '—'}
-                    </Typography>
-                    {accommodationDiscountAmount > 0 && (
-                      <Typography variant="caption" sx={{ display: 'block', color: 'success.dark' }}>
-                        Économie: {accommodationDiscountAmount.toFixed(2)}€
-                      </Typography>
+                    <TextField
+                      label="Prix ajusté"
+                      type="number"
+                      value={form.customPrice}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        updateForm({ customPrice: val === '' ? '' : Math.max(0, Number(val) || 0) });
+                      }}
+                      onFocus={(e) => e.target.select()}
+                      fullWidth
+                      inputProps={{ min: 0, step: 0.01 }}
+                      sx={{
+                        mt: 1,
+                        '& input[type=number]': {
+                          MozAppearance: 'textfield',
+                        },
+                        '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
+                          WebkitAppearance: 'none',
+                          margin: 0,
+                        }
+                      }}
+                      size="small"
+                    />
+                    {form.customPrice !== '' && accommodationBasePriceDisplay && (
+                      <Box sx={{ mt: 1 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                          {Number(form.customPrice) < Number(accommodationBasePriceDisplay)
+                            ? `Réduction: ${(Number(accommodationBasePriceDisplay) - Number(form.customPrice)).toFixed(2)}€`
+                            : `Augmentation: ${(Number(form.customPrice) - Number(accommodationBasePriceDisplay)).toFixed(2)}€`}
+                        </Typography>
+                      </Box>
                     )}
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1 }}>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1.5 }}>
                       <TextField
                         label="Réduction (%)"
                         type="number"
@@ -2038,17 +2071,7 @@ export default function ReservationPage() {
                         onChange={(e) => updateForm({ discountPercent: Number(e.target.value), customPrice: '' })}
                         fullWidth
                         inputProps={{ min: 0, max: 100 }}
-                      />
-                      <TextField
-                        label="Prix remisé manuel"
-                        type="number"
-                        value={form.customPrice}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          updateForm({ customPrice: val === '' ? '' : Math.max(0, Number(val) || 0) });
-                        }}
-                        fullWidth
-                        inputProps={{ min: 0, step: 0.01 }}
+                        size="small"
                       />
                     </Stack>
                   </CardContent>
