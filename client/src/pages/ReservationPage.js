@@ -2265,6 +2265,24 @@ export default function ReservationPage() {
               
               const totalSejour = Math.round((accommodationPriceAfterDiscount + optionsTotal + resourcesTotal + touristTaxTotal) * 100) / 100;
 
+              // VAT calculations
+              const vatPercentageAccommodation = Number(selectedProperty?.vatPercentageAccommodation || 20);
+              const vatPercentageOptions = Number(selectedProperty?.vatPercentageOptions || 20);
+              const vatPercentageResources = Number(selectedProperty?.vatPercentageResources || 20);
+              
+              // For TTC prices: VAT amount = TTC × (vatRate / (100 + vatRate))
+              const accommodationVatAmount = Math.round(accommodationPriceAfterDiscount * (vatPercentageAccommodation / (100 + vatPercentageAccommodation)) * 100) / 100;
+              const accommodationNetPrice = Math.round((accommodationPriceAfterDiscount - accommodationVatAmount) * 100) / 100;
+              
+              const optionsVatAmount = Math.round(optionsTotal * (vatPercentageOptions / (100 + vatPercentageOptions)) * 100) / 100;
+              const optionsNetPrice = Math.round((optionsTotal - optionsVatAmount) * 100) / 100;
+              
+              const resourcesVatAmount = Math.round(resourcesTotal * (vatPercentageResources / (100 + vatPercentageResources)) * 100) / 100;
+              const resourcesNetPrice = Math.round((resourcesTotal - resourcesVatAmount) * 100) / 100;
+              
+              const totalVatAmount = accommodationVatAmount + optionsVatAmount + resourcesVatAmount;
+              const totalNetPrice = accommodationNetPrice + optionsNetPrice + resourcesNetPrice;
+
               return (
                 <Stack spacing={1.5}>
                   {/* Prix hébergement */}
@@ -2455,6 +2473,58 @@ export default function ReservationPage() {
                       </Box>
                     </>
                   )}
+
+                  {/* Détails TVA */}
+                  <Divider />
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      Détails TVA
+                    </Typography>
+                    
+                    {/* Accommodation VAT */}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
+                      <Typography variant="caption" color="text.secondary">
+                        Hébergement (HT + TVA {vatPercentageAccommodation}%)
+                      </Typography>
+                      <Typography variant="caption" sx={{ fontWeight: 500 }}>
+                        {accommodationNetPrice.toFixed(2)}€ + {accommodationVatAmount.toFixed(2)}€
+                      </Typography>
+                    </Box>
+
+                    {/* Options VAT */}
+                    {optionsTotal > 0 && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
+                        <Typography variant="caption" color="text.secondary">
+                          Options (HT + TVA {vatPercentageOptions}%)
+                        </Typography>
+                        <Typography variant="caption" sx={{ fontWeight: 500 }}>
+                          {optionsNetPrice.toFixed(2)}€ + {optionsVatAmount.toFixed(2)}€
+                        </Typography>
+                      </Box>
+                    )}
+
+                    {/* Resources VAT */}
+                    {resourcesTotal > 0 && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
+                        <Typography variant="caption" color="text.secondary">
+                          Ressources (HT + TVA {vatPercentageResources}%)
+                        </Typography>
+                        <Typography variant="caption" sx={{ fontWeight: 500 }}>
+                          {resourcesNetPrice.toFixed(2)}€ + {resourcesVatAmount.toFixed(2)}€
+                        </Typography>
+                      </Box>
+                    )}
+
+                    {/* Total HT / TVA */}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 0.5, borderTop: '1px solid rgba(0,0,0,0.1)' }}>
+                      <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                        Total HT / TVA
+                      </Typography>
+                      <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                        {totalNetPrice.toFixed(2)}€ / {totalVatAmount.toFixed(2)}€
+                      </Typography>
+                    </Box>
+                  </Box>
 
                   {/* Total du séjour */}
                   <Divider />

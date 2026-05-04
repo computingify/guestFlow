@@ -345,6 +345,15 @@ if (!propCols.includes('doubleBeds')) {
 if (!propCols.includes('touristTaxPerDayPerPerson')) {
   db.exec("ALTER TABLE properties ADD COLUMN touristTaxPerDayPerPerson REAL DEFAULT 0");
 }
+if (!propCols.includes('vatPercentageAccommodation')) {
+  db.exec("ALTER TABLE properties ADD COLUMN vatPercentageAccommodation REAL DEFAULT 20");
+}
+if (!propCols.includes('vatPercentageOptions')) {
+  db.exec("ALTER TABLE properties ADD COLUMN vatPercentageOptions REAL DEFAULT 20");
+}
+if (!propCols.includes('vatPercentageResources')) {
+  db.exec("ALTER TABLE properties ADD COLUMN vatPercentageResources REAL DEFAULT 20");
+}
 
 const pricingRuleCols = db.prepare("PRAGMA table_info(pricing_rules)").all().map(c => c.name);
 if (!pricingRuleCols.includes('pricingMode')) {

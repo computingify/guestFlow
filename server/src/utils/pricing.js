@@ -540,6 +540,17 @@ function calculateReservationQuote({
       defaultCheckOut: property.defaultCheckOut || '10:00',
       optionLines: [],
       resourceLines: [],
+      vatPercentageAccommodation: Number(property.vatPercentageAccommodation || 20),
+      vatPercentageOptions: Number(property.vatPercentageOptions || 20),
+      vatPercentageResources: Number(property.vatPercentageResources || 20),
+      accommodationNetPrice: 0,
+      accommodationVatAmount: 0,
+      optionsNetPrice: 0,
+      optionsVatAmount: 0,
+      resourcesNetPrice: 0,
+      resourcesVatAmount: 0,
+      totalNetPrice: 0,
+      totalVatAmount: 0,
     };
   }
 
@@ -666,6 +677,24 @@ function calculateReservationQuote({
   );
   const discountAmount = roundMoney(Math.max(0, subtotal - finalPrice));
 
+  // VAT calculations (all prices are TTC - VAT already included)
+  const vatPercentageAccommodation = Number(property.vatPercentageAccommodation || 20);
+  const vatPercentageOptions = Number(property.vatPercentageOptions || 20);
+  const vatPercentageResources = Number(property.vatPercentageResources || 20);
+  
+  // For TTC prices: VAT amount = TTC × (vatRate / (100 + vatRate))
+  const accommodationVatAmount = roundMoney(totalPrice * (vatPercentageAccommodation / (100 + vatPercentageAccommodation)));
+  const accommodationNetPrice = roundMoney(totalPrice - accommodationVatAmount);
+  
+  const optionsVatAmount = roundMoney(optionsTotal * (vatPercentageOptions / (100 + vatPercentageOptions)));
+  const optionsNetPrice = roundMoney(optionsTotal - optionsVatAmount);
+  
+  const resourcesVatAmount = roundMoney(resourcesTotal * (vatPercentageResources / (100 + vatPercentageResources)));
+  const resourcesNetPrice = roundMoney(resourcesTotal - resourcesVatAmount);
+  
+  const totalVatAmount = roundMoney(accommodationVatAmount + optionsVatAmount + resourcesVatAmount);
+  const totalNetPrice = roundMoney(accommodationNetPrice + optionsNetPrice + resourcesNetPrice);
+
   const autoDepositAmount = roundMoney(finalPrice * (Number(property.depositPercent || 0) / 100));
   const autoBalanceAmount = roundMoney(finalPrice - autoDepositAmount);
   let resolvedDepositAmount = autoDepositAmount;
@@ -712,6 +741,18 @@ function calculateReservationQuote({
     defaultCheckOut: property.defaultCheckOut || '10:00',
     optionLines: finalOptionLines,
     resourceLines,
+    // VAT breakdown (all prices are TTC)
+    vatPercentageAccommodation,
+    vatPercentageOptions,
+    vatPercentageResources,
+    accommodationNetPrice,
+    accommodationVatAmount,
+    optionsNetPrice,
+    optionsVatAmount,
+    resourcesNetPrice,
+    resourcesVatAmount,
+    totalNetPrice,
+    totalVatAmount,
   };
 }
 
