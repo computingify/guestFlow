@@ -13,8 +13,10 @@ import { useAppDialogs } from '../components/DialogProvider';
 import api from '../api';
 import { displayDate } from '../utils/formatters';
 
+const ALL_PROPERTIES = 'ALL';
+
 const EMPTY_FORM = {
-  propertyId: '',
+  propertyId: ALL_PROPERTIES,
   label: 'Fermeture établissement',
   startDate: '',
   endDate: '',
@@ -51,7 +53,7 @@ export default function EstablishmentClosuresPage() {
   const openEdit = (row) => {
     setEditId(row.id);
     setForm({
-      propertyId: row.propertyId == null ? '' : String(row.propertyId),
+      propertyId: row.propertyId == null ? ALL_PROPERTIES : String(row.propertyId),
       label: row.label || 'Fermeture établissement',
       startDate: row.startDate || '',
       endDate: row.endDate || '',
@@ -66,7 +68,7 @@ export default function EstablishmentClosuresPage() {
     setSaving(true);
     setDialogError('');
     const payload = {
-      propertyId: form.propertyId === '' ? null : Number(form.propertyId),
+      propertyId: form.propertyId === ALL_PROPERTIES ? null : Number(form.propertyId),
       label: form.label,
       startDate: form.startDate,
       endDate: form.endDate,
@@ -190,7 +192,7 @@ export default function EstablishmentClosuresPage() {
             fullWidth
             helperText="Sélectionnez « Tous les logements » pour une fermeture globale."
           >
-            <MenuItem value="">Tous les logements</MenuItem>
+            <MenuItem value={ALL_PROPERTIES}>Tous les logements</MenuItem>
             {properties.map((p) => (
               <MenuItem key={p.id} value={String(p.id)}>{p.name}</MenuItem>
             ))}
