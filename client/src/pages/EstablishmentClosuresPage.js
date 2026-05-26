@@ -4,7 +4,6 @@ import {
   Tooltip, MenuItem, Alert, Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PageActionBar from '../components/PageActionBar';
 import TableCard from '../components/TableCard';
@@ -143,7 +142,12 @@ export default function EstablishmentClosuresPage() {
                 </TableCell>
               </TableRow>
             ) : closures.map((row) => (
-              <TableRow key={row.id} hover>
+              <TableRow
+                key={row.id}
+                hover
+                onClick={() => openEdit(row)}
+                sx={{ cursor: 'pointer' }}
+              >
                 <TableCell>
                   {row.propertyId == null ? (
                     <Typography variant="body2" color="text.disabled" sx={{ fontStyle: 'italic' }}>
@@ -157,13 +161,13 @@ export default function EstablishmentClosuresPage() {
                 <TableCell>{displayDate(row.startDate)}</TableCell>
                 <TableCell>{displayDate(row.endDate)}</TableCell>
                 <TableCell align="right">
-                  <Tooltip title="Modifier">
-                    <IconButton size="small" onClick={() => openEdit(row)} aria-label="Modifier">
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
                   <Tooltip title="Supprimer">
-                    <IconButton size="small" color="error" onClick={() => handleDelete(row.id)} aria-label="Supprimer">
+                    <IconButton
+                      size="small"
+                      color="error"
+                      onClick={(e) => { e.stopPropagation(); handleDelete(row.id); }}
+                      aria-label="Supprimer"
+                    >
                       <DeleteIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>

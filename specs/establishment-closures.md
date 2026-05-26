@@ -193,7 +193,7 @@ Speeds up the overlap-detection queries that look up closures by `(propertyId, d
 └───────────────────────────────────────────────────────────────────┘
 
 ┌───────────────────────────────────────────────────────────────────┐
-│ Logement              Libellé              Début       Fin   ⋯    │
+│ Logement              Libellé              Début       Fin   [🗑] │  ← every row is clickable → edit
 │ ───────────────────────────────────────────────────────────────── │
 │ Tous les logements    Congé annuel         01/08/2026  31/08/...  │
 │ Villa Sunset          Ravalement façade    10/09/2026  20/09/...  │
@@ -205,7 +205,8 @@ Speeds up the overlap-detection queries that look up closures by `(propertyId, d
 - `actionsBefore` (only icon): `{ icon: <AddIcon />, tooltip: "Ajouter une fermeture", onClick: openCreateDialog, color: 'primary', variant: 'contained' }`. No `onSave`/`onCancel` since this is a list page (the dialog handles its own save).
 - Table inside `TableCard`, max-width 920 centered.
 - Empty state: "Aucune fermeture configurée".
-- Each row: property name (or "Tous les logements" italic gray for global), label, start, end, edit + delete IconButtons.
+- Each row is **clickable** (cursor pointer + hover background): clicking anywhere on the row opens the edit dialog. Only the delete IconButton (right column) is an explicit affordance; it uses `stopPropagation` so it doesn't trigger the row-level edit handler.
+- Row content: property name (or "Tous les logements" italic gray for global), label, start, end, then the delete icon in the Actions column.
 
 ### 6.2 Add / Edit dialog
 
@@ -316,6 +317,8 @@ If a closure spans multiple months, the band continues into each visible month (
 - [ ] Add a per-property closure for one property → row appears with the property name.
 - [ ] Try to add another global closure overlapping the first → red Alert in dialog: `CLOSURE_OVERLAP`.
 - [ ] Try to add a per-property closure overlapping an existing reservation → red Alert with the reservation name.
+- [ ] Click anywhere on a row → edit dialog opens pre-filled with that row.
+- [ ] Click the trash icon → does NOT open the edit dialog (stopPropagation), confirm dialog appears instead.
 - [ ] Edit a closure → form pre-filled, save updates the row.
 - [ ] Delete → confirm dialog → row gone.
 - [ ] After a global closure is created, try to create a reservation on that property during the closed period → API returns `409 CLOSURE_COVERS_DATE` (UI behavior of reservation form is out of scope, but the server rejection is asserted).
