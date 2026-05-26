@@ -223,12 +223,21 @@ Server error → red `Alert` inside the dialog (`409 RESERVATION_OVERLAP` shows 
 
 ### 6.3 Sidebar entry
 
-Add to `client/src/App.js` `navItems` (top-level, after "Devis"):
-```js
-{ label: 'Fermetures', path: '/establishment-closures', icon: <DoNotDisturbOnIcon /> },
+Placed inside the existing **Paramètres** sub-menu (alongside Options, Resources, Clients, Vacances scolaires, etc.) — closures are an administrative configuration concern and group naturally with the other settings items.
+
+In `client/src/App.js`, the new item is added inside the `Collapse in={settingsMenuOpen}` block, after "Vacances scolaires":
+```jsx
+<ListItemButton
+  component={Link}
+  to="/establishment-closures"
+  selected={location.pathname === '/establishment-closures'}
+>
+  <ListItemIcon><EventBusyIcon fontSize="small" /></ListItemIcon>
+  <ListItemText primary="Fermetures" />
+</ListItemButton>
 ```
 
-Choose any reasonable MUI icon — `DoNotDisturbOnIcon` or `EventBusyIcon` works.
+The `'/establishment-closures'` path is also added to the conditions that keep `settingsMenuOpen = true` (so the sub-menu stays expanded while the user is on the closures page) and to the parent's `selected` predicate (so Paramètres stays highlighted).
 
 ### 6.4 Responsive
 

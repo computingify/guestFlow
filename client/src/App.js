@@ -58,7 +58,6 @@ const navItems = [
   { label: 'Calendrier', path: '/calendar', icon: <EventIcon /> },
   { label: 'Suivi financier', path: '/finance', icon: <AccountBalanceIcon /> },
   { label: 'Devis', path: '/devis', icon: <DescriptionIcon /> },
-  { label: 'Fermetures', path: '/establishment-closures', icon: <EventBusyIcon /> },
   { label: 'Parametres', path: '/settings', icon: <SettingsIcon /> },
 ];
 
@@ -116,6 +115,7 @@ function NavContent({ onItemClick }) {
       || location.pathname === '/resources'
       || location.pathname === '/clients'
       || location.pathname === '/school-holidays'
+      || location.pathname === '/establishment-closures'
     ) {
       setSettingsMenuOpen(true);
       setCalendarMenuOpen(false);
@@ -147,6 +147,7 @@ function NavContent({ onItemClick }) {
                     || location.pathname === '/resources'
                     || location.pathname === '/clients'
                     || location.pathname === '/school-holidays'
+                    || location.pathname === '/establishment-closures'
                     || location.pathname.startsWith('/properties')
                     ? true
                     : (prev) => !prev
@@ -174,6 +175,7 @@ function NavContent({ onItemClick }) {
                       || location.pathname === '/resources'
                       || location.pathname === '/clients'
                       || location.pathname === '/school-holidays'
+                      || location.pathname === '/establishment-closures'
                       || location.pathname.startsWith('/properties')
                     )
                     : location.pathname === item.path
@@ -383,6 +385,16 @@ function NavContent({ onItemClick }) {
                 >
                   <ListItemIcon sx={{ minWidth: 34 }}><DateRangeIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Vacances scolaires" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
+                </ListItemButton>
+                <ListItemButton
+                  component={Link}
+                  to="/establishment-closures"
+                  onClick={(e) => onItemClick && onItemClick(e, '/establishment-closures')}
+                  selected={location.pathname === '/establishment-closures'}
+                  sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                >
+                  <ListItemIcon sx={{ minWidth: 34 }}><EventBusyIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="Fermetures" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
                 </ListItemButton>
               </List>
             </Collapse>
