@@ -213,10 +213,18 @@ Speeds up the overlap-detection queries that look up closures by `(propertyId, d
 `FormDialog` title: "Ajouter une fermeture" / "Modifier la fermeture".
 
 Fields:
-1. **Logement concerné** (`Select`): "Tous les logements" (default) + list of properties from `api.getProperties()`.
+1. **Logement concerné** (`Select`): "Tous les logements" (default sentinel `'ALL'`) + list of properties from `api.getProperties()`. Sentinel converted to `null` in the save payload.
 2. **Libellé** (`TextField`).
-3. **Début fermeture** (`TextField type="date"`).
-4. **Fin fermeture** (`TextField type="date"`).
+3. **Début de fermeture** (`DatePicker` MUI X, `AdapterDayjs`, locale `fr`, format `DD/MM/YYYY`).
+4. **Réouverture** (`DatePicker` MUI X, controlled `open` state, `minDate = startDate + 1`, helper text `"Premier jour à nouveau disponible. Ex : du 15 au 16 = un seul jour fermé (le 15)."`).
+
+**Two-step date-picking UX:**
+- The user clicks the **Début de fermeture** picker → chooses a date → `onAccept` fires.
+- On accept, the start date is stored and the **Réouverture** picker is opened programmatically (`open={endDateOpen}` controlled state).
+- The reopening date is **pre-filled to `startDate + 1`** (= one closed day = the start day) whenever the current value is empty OR `<= startDate` (invalid range). This makes "fermer un seul jour" a single click: accept the start, accept the suggested reopening date, save.
+- The reopening picker has `minDate = startDate + 1` so the user can't pick an invalid range.
+
+**Semantics:** `endDate` is **exclusive** — it is the day of reopening, not the last closed day. This mirrors the reservation convention (`endDate` = checkout day, not included in the stay). Helper text on the **Réouverture** picker makes this explicit with an example.
 
 Submit disabled if `!startDate || !endDate || startDate >= endDate`.
 
@@ -313,6 +321,10 @@ If a closure spans multiple months, the band continues into each visible month (
 #### Desktop (~1200px)
 - [ ] Open Fermetures → page loads with PageActionBar title + "+" icon, empty table state visible.
 - [ ] Click "+" → dialog opens. Default logement is "Tous les logements".
+- [ ] Click the **Début de fermeture** field → mini calendar opens. Pick a date → the calendar closes, the **Réouverture** mini calendar opens automatically with `startDate + 1` pre-selected.
+- [ ] Validate the suggested reopening date → save → 1-day closure created (start day is closed, the next day is again available).
+- [ ] Try to pick a reopening date ≤ start date → the day is disabled (`minDate = startDate + 1`).
+- [ ] When editing a closure with `startDate = X`, `endDate = X + 1`, the Réouverture field shows `X + 1` (no surprise).
 - [ ] Add a global closure for next week → row appears with "Tous les logements" italic gray.
 - [ ] Add a per-property closure for one property → row appears with the property name.
 - [ ] Try to add another global closure overlapping the first → red Alert in dialog: `CLOSURE_OVERLAP`.

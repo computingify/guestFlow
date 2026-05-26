@@ -5,12 +5,26 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { frFR } from '@mui/x-date-pickers/locales';
+import dayjs from 'dayjs';
 import PageActionBar from '../components/PageActionBar';
 import TableCard from '../components/TableCard';
 import FormDialog from '../components/FormDialog';
 import { useAppDialogs } from '../components/DialogProvider';
 import api from '../api';
 import { displayDate } from '../utils/formatters';
+
+function isoToDayjs(iso) {
+  if (!iso) return null;
+  const d = dayjs(iso);
+  return d.isValid() ? d : null;
+}
+function dayjsToIso(d) {
+  return d && d.isValid && d.isValid() ? d.format('YYYY-MM-DD') : '';
+}
 
 const ALL_PROPERTIES = 'ALL';
 
@@ -30,6 +44,7 @@ export default function EstablishmentClosuresPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [dialogError, setDialogError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [endDateOpen, setEndDateOpen] = useState(false);
 
   const load = async () => {
     const [closuresList, propsList] = await Promise.all([
@@ -46,6 +61,7 @@ export default function EstablishmentClosuresPage() {
     setEditId(null);
     setForm(EMPTY_FORM);
     setDialogError('');
+    setEndDateOpen(false);
     setDialogOpen(true);
   };
 
@@ -58,6 +74,7 @@ export default function EstablishmentClosuresPage() {
       endDate: row.endDate || '',
     });
     setDialogError('');
+    setEndDateOpen(false);
     setDialogOpen(true);
   };
 
@@ -207,22 +224,49 @@ export default function EstablishmentClosuresPage() {
             onChange={(e) => setForm((prev) => ({ ...prev, label: e.target.value }))}
             fullWidth
           />
-          <TextField
-            label="Début fermeture"
-            type="date"
-            value={form.startDate}
-            onChange={(e) => setForm((prev) => ({ ...prev, startDate: e.target.value }))}
-            InputLabelProps={{ shrink: true }}
-            fullWidth
-          />
-          <TextField
-            label="Fin fermeture"
-            type="date"
-            value={form.endDate}
-            onChange={(e) => setForm((prev) => ({ ...prev, endDate: e.target.value }))}
-            InputLabelProps={{ shrink: true }}
-            fullWidth
-          />
+          <LocalizationProvider
+            dateAdapter={AdapterDayjs}
+            adapterLocale="fr"
+            localeText={frFR.components.MuiLocalizationProvider.defaultProps.localeText}
+          >
+            <DatePicker
+              label="Début de fermeture"
+              value={isoToDayjs(form.startDate)}
+              onChange={(value) => setForm((prev) => ({ ...prev, startDate: dayjsToIso(value) }))}
+              onAccept={(value) => {
+                const iso = dayjsToIso(value);
+                const nextDayIso = value && value.isValid()
+                  ? value.add(1, 'day').format('YYYY-MM-DD')
+                  : '';
+                setForm((prev) => ({
+                  ...prev,
+                  startDate: iso,
+                  // Pre-fill the reopening date with start+1 (= one closed day)
+                  // whenever it's empty or no longer valid (≤ new start).
+                  endDate: (!prev.endDate || prev.endDate <= iso) ? nextDayIso : prev.endDate,
+                }));
+                setEndDateOpen(true);
+              }}
+              format="DD/MM/YYYY"
+              slotProps={{ textField: { fullWidth: true } }}
+            />
+            <DatePicker
+              label="Réouverture"
+              open={endDateOpen}
+              onOpen={() => setEndDateOpen(true)}
+              onClose={() => setEndDateOpen(false)}
+              value={isoToDayjs(form.endDate)}
+              onChange={(value) => setForm((prev) => ({ ...prev, endDate: dayjsToIso(value) }))}
+              minDate={form.startDate ? dayjs(form.startDate).add(1, 'day') : undefined}
+              format="DD/MM/YYYY"
+              slotProps={{
+                textField: {
+                  fullWidth: true,
+                  helperText: 'Premier jour à nouveau disponible. Ex : du 15 au 16 = un seul jour fermé (le 15).',
+                },
+              }}
+            />
+          </LocalizationProvider>
         </Box>
       </FormDialog>
     </Box>
