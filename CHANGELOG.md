@@ -90,11 +90,13 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - Unit tests: `settings-validation.unit.test.js`, `settings-response.unit.test.js`, `settings-model.unit.test.js`, `google-calendar-test-connection.unit.test.js` (44 new test cases, all passing).
 
 ### Changed
-- **Devis editor — accept-to-convert flow + "Actualiser tarifs"**: removed the standalone "Passer en
-  réservation" action; converting a devis to a reservation now happens by setting its status to
-  **Accepté** in the dropdown, which asks for confirmation ("le devis sera converti en réservation")
-  before converting (same conversion as before). The Finance section's **"Actualiser tarifs"** button is
-  now also available in devis mode (recompute with current rates + clear any manual price).
+- **Devis editor — accept-to-convert flow + "Actualiser tarifs"** (spec `devis-accept-to-reservation.md`):
+  removed the standalone "Passer en réservation" action; converting a devis to a reservation now happens
+  by setting its status to **Accepté** in the dropdown, which asks for confirmation before, on confirm,
+  **saving the devis, converting it into a persisted reservation, and opening that reservation** —
+  whose "Annuler"/retour goes back to the **calendar centered on it** (`?from=/calendar`). The Finance
+  section's **"Actualiser tarifs"** button is now also available in devis mode (recompute with current
+  rates + clear any manual price).
 - **ReservationPage form split into section components via a form context** (Bloc 3 slice 3c-3, spec
   `reservation-form-sections.md`) — the long left-column form JSX is decomposed into focused, feature-local
   components under `client/src/components/reservation/`: `StaySection`, `GuestsBedsSection`, `ExtrasSection`

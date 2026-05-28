@@ -1731,23 +1731,29 @@ export default function ReservationPage() {
     }
   };
 
-  // Devis status change. Moving a saved devis to "Accepté" converts it into a reservation (after
-  // confirmation) — this replaces the former standalone "Passer en réservation" action. Other status
-  // changes (draft/sent) just update the form.
+  // Devis status change. Moving a saved devis to "Accepté" saves the current edits, converts the devis
+  // into a (persisted) reservation after confirmation, and lands on that reservation — this replaces the
+  // former standalone "Passer en réservation" action. Other status changes (draft/sent) just update the
+  // form. The landing reservation carries a back-target to the calendar centered on it, so "Annuler"
+  // returns there.
   const handleDevisStatusChange = async (nextStatus) => {
     if (nextStatus === 'accepted' && editingDevisId) {
       const ok = await confirm({
         title: 'Accepter le devis',
-        message: 'En acceptant ce devis, il sera converti en réservation et les dates seront bloquées. Voulez-vous continuer ?',
+        message: 'En acceptant ce devis, il sera enregistré puis converti en réservation (les dates seront bloquées). Voulez-vous continuer ?',
         confirmLabel: 'Convertir en réservation',
         cancelLabel: 'Annuler',
         confirmColor: 'warning',
       });
       if (!ok) return;
       try {
+        // Persist current devis edits first so the reservation reflects them, then convert.
+        const saved = await handleSaveReservation(() => {});
+        if (!saved) return;
         const result = await api.convertDevisToReservation(editingDevisId);
         if (result?.reservationId) {
-          navigate(`/reservations/${result.reservationId}`);
+          // Land on the saved reservation; "Annuler"/retour goes back to the calendar centered on it.
+          navigate(`/reservations/${result.reservationId}?from=${encodeURIComponent('/calendar')}`);
         } else {
           navigate('/reservations/new');
         }
