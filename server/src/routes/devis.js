@@ -1215,7 +1215,11 @@ router.get('/:id/pdf', (req, res) => {
 
   function drawRow(desc, qty, totalTtc, vatRate, italic, meta = {}) {
     const originalTtc = Number(meta.originalTtc || 0);
-    const showOriginal = originalTtc > Number(totalTtc || 0) + 0.009;
+    // By default the original is struck only when it's higher (a reduction). `forceOriginal` strikes it
+    // in either direction (used for a manual accommodation price, which can be lower or higher).
+    const showOriginal = meta.forceOriginal
+      ? originalTtc > 0 && Math.abs(originalTtc - Number(totalTtc || 0)) > 0.009
+      : originalTtc > Number(totalTtc || 0) + 0.009;
     const hasBadge = Boolean(meta.badgeText);
     const rowH = showOriginal || hasBadge ? 28 : 20;
     rowY = checkBreak(rowY, rowH);
@@ -1284,6 +1288,7 @@ router.get('/:id/pdf', (req, res) => {
     const manualAccommodationTtc = roundMoney(Number(full.finalPrice || 0) - optionsTotalTtc - resourcesTotalTtc);
     drawRow(`Hébergement — ${nights} nuit${nights > 1 ? 's' : ''}`, nights, manualAccommodationTtc, vatAccommodation, false, {
       originalTtc: engineAccommodationTtc,
+      forceOriginal: true,
     });
   } else if (full.nights && full.nights.length > 0) {
     // Group consecutive nights by season
