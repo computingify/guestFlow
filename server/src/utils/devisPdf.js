@@ -555,16 +555,16 @@ function generateDevisPdf(full, settings) {
     // Left: company name
     if (settings.companyName) {
       doc.fontSize(7.5).fillColor('#888888').font('Helvetica-Bold')
-        .text(settings.companyName, LEFT, ftY, { width: PAGE_W * 0.35, ellipsis: true });
+        .text(settings.companyName, LEFT, ftY, { width: PAGE_W * 0.25, ellipsis: true });
     }
-    // Center: SIRET / TVA
+    // Center: SIRET / TVA — wide column + no wrap so both stay on a single line.
     if (legalCenter) {
       doc.fontSize(7.5).fillColor('#888888').font('Helvetica')
-        .text(legalCenter, LEFT + PAGE_W * 0.35, ftY, { width: PAGE_W * 0.3, align: 'center' });
+        .text(legalCenter, LEFT + PAGE_W * 0.25, ftY, { width: PAGE_W * 0.5, align: 'center', lineBreak: false });
     }
     // Right: page X / N
     doc.fontSize(7.5).fillColor('#888888').font('Helvetica')
-      .text(`Page ${i + 1} / ${totalPages}`, LEFT + PAGE_W * 0.65, ftY, { width: PAGE_W * 0.35, align: 'right' });
+      .text(`Page ${i + 1} / ${totalPages}`, LEFT + PAGE_W * 0.75, ftY, { width: PAGE_W * 0.25, align: 'right' });
   }
 
   doc.flushPages();

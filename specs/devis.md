@@ -56,8 +56,10 @@ schema change.
 2. **PDF service.** The `GET /:id/pdf` body moves verbatim into `utils/devisPdf.js`
    (`generateDevisPdf(devis, settings) → Promise<Buffer>`), a pure renderer (no DB). The PDF-only format
    helpers move with it. The route/controller fetches the enriched devis + settings, calls the service,
-   and streams the buffer with the existing `Content-Type`/`Content-Disposition` headers. **Output is
-   byte-identical** (same layout, fonts, copy, totals, struck/offered lines, bank block, schedule).
+   and streams the buffer with the existing `Content-Type`/`Content-Disposition` headers. **Layout is
+   preserved** (same fonts, copy, totals, struck/offered lines, bank block, schedule) — with one
+   deliberate footer fix: the per-page SIRET/TVA legal line is widened and forced to a single line
+   (`lineBreak: false`) so SIRET and TVA never wrap. So the PDF is *not* byte-identical, by design.
 3. **Behavior-preserving.** Every endpoint keeps its exact contract, validation (`400` on bad
    money/percentage via `validateFinanceInputs`, min-nights handling, `404`, `400` "déjà converti", etc.),
    response shapes, history/audit entries, and the convert flows (devis→reservation marks the devis
@@ -107,7 +109,8 @@ untouched).
 
 ### 4.3 API contract
 
-Unchanged. Same 10 endpoints, same request/response shapes, same status codes, same PDF bytes.
+Unchanged. Same 10 endpoints, same request/response shapes, same status codes. PDF layout preserved
+except the deliberate single-line SIRET/TVA footer fix (§3.2).
 
 ---
 
@@ -127,12 +130,17 @@ and history all behave identically.
       nights) + payment schedule; `updateStatus` (records history, blocks converted, 400/404); `remove`;
       convert-to-reservation (creates the reservation + children, marks devis `converted`, copies history,
       blocks double conversion); convert-from-reservation. _(create/update need the full pricing engine →
-      covered by the controller + browser.)_
+      covered by `devis-model-create.unit.test.js` + browser.)_
+- [x] `devis-model-create.unit.test.js` (5, full pricing schema) — the money-critical paths the plain
+      model test can't reach: `create` persists engine prices + option/nights lines + a `create` history
+      entry; `create` honours a manual accommodation price; `create` validation (`400` no property, `404`
+      unknown property); `update` recomputes, replaces lines and **records a history entry** (verifies the
+      audit fix); `update` on a missing devis → `404`.
 - [x] `devis-controller.unit.test.js` (6, fake model) — `400` on invalid money; `404`; already-converted
       `400`; success shapes; pdf 404 when devis missing.
 - [x] `devis-pdf.unit.test.js` (2) — `generateDevisPdf` returns a `%PDF` Buffer; offered/custom-option/
       per-hour/manual-price branches don't throw.
-- [x] Full server suite green (**310**).
+- [x] Full server suite green (**315**).
 
 ### Manual UI verification (in browser)
 - [x] Devis list opens; `0` console errors.
