@@ -1716,9 +1716,7 @@ export default function ReservationPage() {
       const saved = await handleSaveReservation(() => {});
       if (!saved) return;
 
-      const res = await fetch(api.getDevisPdfUrl(editingDevisId));
-      if (!res.ok) throw new Error('Impossible de générer le PDF.');
-      const blob = await res.blob();
+      const blob = await api.getDevisPdfBlob(editingDevisId);
       const fileUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = fileUrl;

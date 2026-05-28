@@ -147,6 +147,10 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - `routes/devis.js` now sources app settings via `settingsModel` (instead of the removed `db.getAppSettings`).
 
 ### Fixed
+- **Devis PDF download returned 401 ("Impossible de générer le PDF"):** the PDF was fetched with a raw
+  `fetch` that didn't send credentials. With `REACT_APP_API_URL` absolute (cross-origin in dev), the
+  default fetch omits the session cookie → `401`. Added `api.getDevisPdfBlob(id)` (fetch with
+  `credentials: 'include'`) used by both the Devis list page and the reservation devis-mode download.
 - **Dev TLS error in Safari (page would not load over HTTP):** Helmet's default CSP includes
   `upgrade-insecure-requests` and HSTS pins the host to HTTPS, so a plain-HTTP dev session upgraded
   `http://localhost/main.<hash>.js` to `https://localhost` → "Une erreur TLS a provoqué l'échec de la
