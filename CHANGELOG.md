@@ -205,6 +205,12 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - `routes/devis.js` now sources app settings via `settingsModel` (instead of the removed `db.getAppSettings`).
 
 ### Fixed
+- **Selecting a non-hourly resource broke the quote (price + summary):** the pricing engine's
+  resource-line builder referenced an undefined `priceType` (instead of `resource.priceType`) when a
+  resource was **not** `per_hour`/complex/free-minutes, throwing `ReferenceError` and failing the whole
+  quote. `per_stay` / `per_person` / `per_night` / `per_person_per_night` resources now price correctly
+  (e.g. a 20€ per-person-per-night resource over 2 guests × 3 nights = 120€). Regression test added
+  (`pricing-resource-types`).
 - **Client creation was broken (POST /api/clients hung):** the `clientsController` attached its
   `create(model)` factory as `.create`, overwriting the `create` request handler — so the route called the
   factory and never responded. The factory is now `.buildController` on the Bloc-1 controllers
