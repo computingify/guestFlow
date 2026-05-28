@@ -267,11 +267,17 @@ export default function ReservationPage() {
     });
   };
 
+  // Establish the "clean" baseline for the unsaved-changes guard. For an existing reservation/devis the
+  // server recalc reshapes the loaded form once on mount (offered flags, derived amounts) with no user
+  // action — so we wait until that first quote has applied before snapshotting. Otherwise a freshly
+  // loaded (or just-converted) record would be wrongly flagged dirty and prompt on leave. New/prefilled
+  // records snapshot immediately.
   useEffect(() => {
-    if (!loading && initialSnapshot === null) {
-      setInitialSnapshot(formSnapshot);
-    }
-  }, [loading, initialSnapshot, formSnapshot]);
+    if (loading || initialSnapshot !== null) return;
+    const isExistingRecord = Boolean(editingReservationId || editingDevisId);
+    if (isExistingRecord && !pricingQuote) return;
+    setInitialSnapshot(formSnapshot);
+  }, [loading, initialSnapshot, formSnapshot, editingReservationId, editingDevisId, pricingQuote]);
 
   useEffect(() => {
     if (!isDirty) return;

@@ -154,6 +154,11 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - `routes/devis.js` now sources app settings via `settingsModel` (instead of the removed `db.getAppSettings`).
 
 ### Fixed
+- **False "Modifications non enregistrées" prompt on a freshly loaded reservation/devis:** the on-mount
+  server pricing recalc reshaped the loaded form after the unsaved-changes baseline was captured, so a
+  just-opened (or just-converted) record was wrongly flagged dirty and prompted on "Annuler"/navigation.
+  The baseline is now captured **after** the first quote applies for existing records (new/prefilled
+  records still baseline immediately); genuine edits still flag dirty. Spec `devis-accept-to-reservation.md`.
 - **Devis PDF ignored the manual accommodation price:** when a manual price (`customPrice`) overrode the
   accommodation, the PDF still printed the engine-computed price on the accommodation line, so the HT and
   TTC subtotals were wrong (only the grand total TTC, which uses `finalPrice`, was right). The PDF now

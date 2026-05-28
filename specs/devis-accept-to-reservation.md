@@ -40,7 +40,8 @@ reservation editor.
    seront bloquées). Voulez-vous continuer ? »* with actions **Annuler** / **Convertir en réservation**.
 3. **On confirm:** the current devis edits are **saved first** (so the reservation reflects them), then
    `convert-to-reservation` is called, then the app navigates to the **created reservation**
-   (`/reservations/:id`). The reservation is therefore already persisted — no extra manual save.
+   (`/reservations/:id`). The reservation is therefore already persisted — no extra manual save, and the
+   landing reservation must **not** be flagged "unsaved" (see rule 8).
 4. **Cancel is non-destructive.** Cancelling the confirmation leaves the devis unchanged; the status
    dropdown reverts to its previous value (it is controlled by `form.status`, which is not mutated).
 5. **Other statuses** (`Brouillon`, `Envoyé`) just update the devis form (`status`) as before.
@@ -51,6 +52,13 @@ reservation editor.
 7. **"Actualiser tarifs" available in devis mode.** The Finance section shows the button for devis as
    well as reservations; it recomputes with current rates (`forceCurrentPricing`) and clears any manual
    price (`customPrice`). The confirmation copy adapts to "ce devis".
+8. **No false "unsaved changes" prompt on a freshly loaded record (reworked guard).** When an existing
+   reservation/devis is opened (including the just-converted reservation), the server pricing recalc
+   reshapes the loaded form once on mount (offered flags, derived amounts) with no user action. The
+   unsaved-changes baseline must therefore be captured **after** that first recalc has applied, not
+   before — otherwise leaving via "Annuler" or navigation wrongly shows the "Modifications non
+   enregistrées" dialog. New/prefilled records still baseline immediately. Genuine user edits after load
+   still flag the form dirty as before.
 
 **Edge cases:**
 - Save validation fails (no client/dates/property, conflicts, capacity/min-nights refused) → conversion
@@ -79,7 +87,7 @@ No server change. No new dependency.
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `pages/` | `ReservationPage.js` | T | Remove the "Passer en réservation" action + its icon import; add `handleDevisStatusChange` (confirm → save → convert → navigate with `?from=/calendar`); wire the status `Select` to it; make `refreshToCurrentPricing` work in devis mode. |
+| `pages/` | `ReservationPage.js` | T | Remove the "Passer en réservation" action + its icon import; add `handleDevisStatusChange` (confirm → save → convert → navigate with `?from=/calendar`); wire the status `Select` to it; make `refreshToCurrentPricing` work in devis mode. **Rework the unsaved-changes baseline effect** (rule 8): for an existing record, set `initialSnapshot` only after the first `pricingQuote` has applied. |
 | `components/reservation/` | `FinanceSection.js` | T | Show "Actualiser tarifs" when `isDevisMode || reservationId`. |
 | `utils/` | `navigation.js` | — | Reused (`getFromParam`, `navigateBackWithFrom`). |
 
@@ -129,9 +137,12 @@ updates `devis.status`/`devis.convertedReservationId` — all pre-existing.
 - [x] Status → Accepté shows the confirmation dialog with Annuler / Convertir en réservation; cancel is
       non-destructive (verified in browser).
 - [x] "Actualiser tarifs" is present in the Finance section in devis mode (verified in browser).
-- [ ] Accept → confirm → reservation is created and opened (saved), and **Annuler returns to the
-      calendar centered on the reservation** (to verify on a non-converted devis; not run to avoid
-      mutating data).
+- [x] Opening the converted reservation (the one produced by devis #3) and clicking **Annuler** goes
+      straight to `/calendar?propertyId=…&focusStartDate=…&focusEndDate=…` (centered) with **no**
+      "Modifications non enregistrées" dialog — confirms rules 6 + 8 (verified in browser).
+- [ ] Accept on a *non-converted* devis → confirm → reservation created and opened (full end-to-end);
+      not run here to avoid mutating data.
+- [ ] Genuine edit after load still prompts on leave (dirty guard not disabled).
 - [ ] Mobile (`xs`): dropdown, dialog and Finance button render correctly.
 
 ## 8. Out of scope
