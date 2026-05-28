@@ -147,6 +147,11 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - `routes/devis.js` now sources app settings via `settingsModel` (instead of the removed `db.getAppSettings`).
 
 ### Fixed
+- **Devis PDF ignored the manual accommodation price:** when a manual price (`customPrice`) overrode the
+  accommodation, the PDF still printed the engine-computed price on the accommodation line, so the HT and
+  TTC subtotals were wrong (only the grand total TTC, which uses `finalPrice`, was right). The PDF now
+  renders a single accommodation row at the manual amount (engine price struck through when it's a
+  reduction), so the rows sum to `finalPrice` and the HT/TTC subtotals reconcile with the total.
 - **Devis PDF download returned 401 ("Impossible de générer le PDF"):** the PDF was fetched with a raw
   `fetch` that didn't send credentials. With `REACT_APP_API_URL` absolute (cross-origin in dev), the
   default fetch omits the session cookie → `401`. Added `api.getDevisPdfBlob(id)` (fetch with

@@ -1270,8 +1270,22 @@ router.get('/:id/pdf', (req, res) => {
     rowIdx++;
   }
 
-  // Nights breakdown
-  if (full.nights && full.nights.length > 0) {
+  // Accommodation row(s).
+  // A manual price (customPrice) overrides the engine/per-night accommodation price: render one
+  // accommodation row at the manual amount (engine price struck through when it's a reduction) so the
+  // HT/TTC subtotals reconcile with the grand total (finalPrice). Otherwise fall back to the per-night
+  // breakdown or a flat row, applying any discount.
+  const optionsTotalTtc = (full.options || []).reduce((s, o) => s + Number(o.totalPrice || 0), 0);
+  const resourcesTotalTtc = (full.resources || []).reduce((s, r) => s + Number(r.totalPrice || 0), 0);
+  const hasManualPrice = full.customPrice != null && full.customPrice !== '';
+
+  if (hasManualPrice) {
+    const engineAccommodationTtc = roundMoney(Number(full.totalPrice || 0) - optionsTotalTtc - resourcesTotalTtc);
+    const manualAccommodationTtc = roundMoney(Number(full.finalPrice || 0) - optionsTotalTtc - resourcesTotalTtc);
+    drawRow(`Hébergement — ${nights} nuit${nights > 1 ? 's' : ''}`, nights, manualAccommodationTtc, vatAccommodation, false, {
+      originalTtc: engineAccommodationTtc,
+    });
+  } else if (full.nights && full.nights.length > 0) {
     // Group consecutive nights by season
     let groups = [];
     let cur = null;
