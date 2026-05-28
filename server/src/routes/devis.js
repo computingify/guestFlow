@@ -1284,7 +1284,10 @@ router.get('/:id/pdf', (req, res) => {
   const hasManualPrice = full.customPrice != null && full.customPrice !== '';
 
   if (hasManualPrice) {
-    const engineAccommodationTtc = roundMoney(Number(full.totalPrice || 0) - optionsTotalTtc - resourcesTotalTtc);
+    // `totalPrice` is the engine accommodation price (no extras) — the same "Prix hébergement brut"
+    // shown struck in the app summary. `finalPrice` is the adjusted accommodation + options + resources,
+    // so the manual accommodation amount is finalPrice minus those extras.
+    const engineAccommodationTtc = roundMoney(Number(full.totalPrice || 0));
     const manualAccommodationTtc = roundMoney(Number(full.finalPrice || 0) - optionsTotalTtc - resourcesTotalTtc);
     drawRow(`Hébergement — ${nights} nuit${nights > 1 ? 's' : ''}`, nights, manualAccommodationTtc, vatAccommodation, false, {
       originalTtc: engineAccommodationTtc,
