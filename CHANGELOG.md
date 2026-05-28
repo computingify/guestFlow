@@ -18,7 +18,7 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   - **HTTP security headers** via `helmet`, including a CSP tuned for the SPA
     (`script-src 'self'` thanks to `INLINE_RUNTIME_CHUNK=false`; `style-src`/`font-src` allow MUI inline
     styles + Google Fonts; `img-src` allows uploaded images). Verified against a production build.
-  - **Rate limiting** (`express-rate-limit`): login 10 failed/15 min/IP, global API 300/15 min/IP
+  - **Rate limiting** (`express-rate-limit`): login 10 failed/15 min/IP, global API 3000/15 min/IP
     (`429`), env-configurable; public iCal export exempt. Replaces PR 1's minimal throttle.
   - **Upload hardening**: document upload gains a 10 MB limit + extension/MIME allowlist; logo extension
     is whitelisted; file deletion is path-contained (`safeUploadPath`). New pure util `utils/uploadSafety.js`.
