@@ -7,7 +7,6 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import DeleteIcon from '@mui/icons-material/Delete';
-import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import DescriptionIcon from '@mui/icons-material/Description';
 import PageActionBar from '../components/PageActionBar';
 import PricingSummary from '../components/PricingSummary';
@@ -1244,10 +1243,13 @@ export default function ReservationPage() {
 
   // ==================== SAVE & DELETE ====================
   const refreshToCurrentPricing = async () => {
-    if (!editingReservationId || isReservationLocked) return;
+    if (isReservationLocked) return;
+    if (!editingReservationId && !isDevisMode) return;
     const proceed = await confirm({
       title: 'Actualiser les tarifs',
-      message: 'Voulez-vous recalculer cette réservation avec les derniers tarifs en vigueur ? Tant que vous n\'enregistrez pas, les anciens prix restent conservés.',
+      message: isDevisMode
+        ? 'Voulez-vous recalculer ce devis avec les derniers tarifs en vigueur ? Le prix saisi manuellement sera réinitialisé.'
+        : 'Voulez-vous recalculer cette réservation avec les derniers tarifs en vigueur ? Tant que vous n\'enregistrez pas, les anciens prix restent conservés.',
       confirmLabel: 'Actualiser',
       cancelLabel: 'Annuler',
       confirmColor: 'warning',
@@ -1266,7 +1268,6 @@ export default function ReservationPage() {
         teens: form.teens,
         extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
         discountPercent: form.discountPercent,
-        customPrice: form.customPrice,
         depositPaid: form.depositPaid,
         balancePaid: form.balancePaid,
         depositAmount: form.depositAmount,
@@ -1276,7 +1277,7 @@ export default function ReservationPage() {
         selectedResources: buildSelectedResourcesPayload(),
         offeredOptionIds: Array.from(offeredOptionIds),
         platform: form.platform,
-        reservationId: editingReservationId,
+        ...(editingReservationId ? { reservationId: editingReservationId } : {}),
         forceCurrentPricing: true,
         customPrice: '',
       });
@@ -1730,25 +1731,32 @@ export default function ReservationPage() {
     }
   };
 
-  const handleConvertDevisToReservation = async () => {
-    if (!editingDevisId) return;
-    const ok = await confirm({
-      title: 'Passer en réservation',
-      message: 'Voulez-vous convertir ce devis en réservation ? Les dates seront bloquées.',
-      confirmLabel: 'Convertir',
-      confirmColor: 'warning',
-    });
-    if (!ok) return;
-    try {
-      const result = await api.convertDevisToReservation(editingDevisId);
-      if (result?.reservationId) {
-        navigate(`/reservations/${result.reservationId}`);
-      } else {
-        navigate('/reservations/new');
+  // Devis status change. Moving a saved devis to "Accepté" converts it into a reservation (after
+  // confirmation) — this replaces the former standalone "Passer en réservation" action. Other status
+  // changes (draft/sent) just update the form.
+  const handleDevisStatusChange = async (nextStatus) => {
+    if (nextStatus === 'accepted' && editingDevisId) {
+      const ok = await confirm({
+        title: 'Accepter le devis',
+        message: 'En acceptant ce devis, il sera converti en réservation et les dates seront bloquées. Voulez-vous continuer ?',
+        confirmLabel: 'Convertir en réservation',
+        cancelLabel: 'Annuler',
+        confirmColor: 'warning',
+      });
+      if (!ok) return;
+      try {
+        const result = await api.convertDevisToReservation(editingDevisId);
+        if (result?.reservationId) {
+          navigate(`/reservations/${result.reservationId}`);
+        } else {
+          navigate('/reservations/new');
+        }
+      } catch (e) {
+        await alert({ title: 'Erreur', message: e.message || 'Impossible de convertir le devis.' });
       }
-    } catch (e) {
-      await alert({ title: 'Erreur', message: e.message || 'Impossible de convertir le devis.' });
+      return;
     }
+    updateForm({ status: nextStatus });
   };
 
   const handleDeleteDevis = async () => {
@@ -1848,7 +1856,7 @@ export default function ReservationPage() {
       node: (
         <FormControl size="small" sx={{ minWidth: 150 }}>
           <InputLabel>Statut</InputLabel>
-          <Select value={form.status || 'draft'} label="Statut" onChange={(e) => updateForm({ status: e.target.value })}>
+          <Select value={form.status || 'draft'} label="Statut" onChange={(e) => handleDevisStatusChange(e.target.value)}>
             {DEVIS_STATUS_OPTIONS.map((opt) => (
               <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
             ))}
@@ -1858,8 +1866,6 @@ export default function ReservationPage() {
     }] : []),
     ...(isDevisMode
       ? [{ icon: <DescriptionIcon />, tooltip: 'Télécharger PDF', onClick: handleOpenDevisPdf, color: 'info', disabled: !editingDevisId }] : []),
-    ...(isDevisMode && editingDevisId
-      ? [{ icon: <AutoFixHighIcon />, tooltip: 'Passer en réservation', onClick: handleConvertDevisToReservation, color: 'warning' }] : []),
   ];
 
   const actionBarAfter = [
