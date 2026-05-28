@@ -152,6 +152,10 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   `http://localhost/main.<hash>.js` to `https://localhost` → "Une erreur TLS a provoqué l'échec de la
   connexion sécurisée". CSP and HSTS are now enforced in **production only** (`NODE_ENV === 'production'`,
   behind the HTTPS reverse proxy); they are disabled in development. Spec: `security-hardening.md`.
+- **Missing favicon (404) + default icon:** added a default GuestFlow favicon (`favicon.svg` + `favicon.ico`
+  for Safari/legacy) referenced from `index.html`, so the app shows a brand icon and stops requesting a
+  missing `/favicon.ico` even when no company logo is configured. When a company logo *is* set, it still
+  overrides the favicon (the default icon links are replaced in `App.js`).
 - **Offered options/resources price bug (Bloc 2):** an option/resource that was "offert" (billed 0) on a
   saved reservation, then made paid again, no longer stays at 0 — the real price is always recomputed and
   restored. The fragile `totalPrice = 0 → offered` inference (in `pricing.js`, plus the SQL fallbacks in
