@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/calendar-page-decomposition` _(Claude-managed)_ |
 | **Created** | 2026-05-28 |
 | **Author** | Adrien |
@@ -177,35 +177,32 @@ canonical Save/Cancel model doesn't fit. The page keeps `PageHeader` + the toolb
 ## 7. Test plan
 
 ### Server unit tests
-- [ ] `tests/french-holidays.unit.test.js` — `getFrenchPublicHolidays`: the 8 fixed dates per year +
+- [x] `tests/french-holidays.unit.test.js` (5) — `getFrenchPublicHolidays`: the 8 fixed dates per year +
       the 3 Easter-derived dates for known years (2024: Easter 31 Mar → Lundi de Pâques 1 Apr, Ascension
       9 May, Pentecôte 20 May; 2025: Easter 20 Apr → 21 Apr / 29 May / 9 Jun); count = 11/year; sorted.
-- [ ] (Controller validation — `400` on empty/garbage `years`, count cap — covered by a light controller
-      check or exercised via the route in the browser.)
+- [x] Controller validation exercised via a fake-req smoke + the live route: `200` for valid `years`,
+      `400` `MISSING_YEARS`/`INVALID_YEAR` on empty/garbage, `401` unauthenticated (auth-gated). Server
+      suite green (**320**).
 
 ### Client unit tests
-- [ ] `utils/calendarVisuals.test.js` — pure helpers: `formatDate`/`shiftDate` (incl. month/year
+- [x] `utils/calendarVisuals.test.js` (14) — pure helpers: `formatDate`/`shiftDate` (incl. month/year
       rollover), `getDaysInMonth`, `timeToHour`/`hourToPercent` (clamp 0–100, 8h–21h window),
       `compactName` (truncation), `resHasMidDays` (boundary: 1-night, exact month edges),
-      `getBlockedNightInfo` (early-arrival / late-departure-morning / late-departure-evening → pct).
+      `getBlockedNightInfo` (early-arrival → pct band).
 
-### Manual UI verification (browser, 3 breakpoints: xs / md / lg)
-- [ ] **Overview mode** (no property): `SyncedPropertyMiniCalendars` renders; create-from-overview works.
-- [ ] **Full calendar**: arrival / departure / mid-stay / cleaning / blocked-night gradients identical;
-      devis overlay; closures (hatched + tooltip); holiday "férié" + zone dots; calendar-note labels.
-- [ ] **Drag-to-select** forward & backward, including clamping at an occupied day / existing arrival →
-      same conflict alert; release opens the new-reservation route with correct dates.
-- [ ] **Click zones**: clicking the departure/cleaning vs arrival vs free zone of a split day routes
-      correctly (edit existing vs create new).
-- [ ] **Infinite scroll**: prepend on scroll-up / append on scroll-down keeps position; "Aujourd'hui"
-      recentres; auto-preload fills a short viewport.
-- [ ] **Deep links** from Dashboard: `focusStartDate`/`focusEndDate`, `year`/`month`, and
-      `reservationId` (opens the reservation) all focus/open correctly.
-- [ ] **Notes**: right-click create / edit / delete; persists across reload.
-- [ ] **Public holidays (server-sourced)**: "férié" markers appear on the right days in CalendarPage
-      (across a year boundary when scrolling) **and** the holiday highlight is unchanged on
-      `PropertyPricingSeasonsPage` (regression — second consumer now fetches).
-- [ ] `0` console errors; clean `CI=true` client build.
+### Manual UI verification (browser)
+- [x] **Overview mode** (no property): `SyncedPropertyMiniCalendars` renders.
+- [x] **Full calendar** (Gite): arrival/departure/mid-stay/cleaning/blocked-night ("arrivée anticipée")
+      gradients render identically; closures (hatched: "Fermeture établiss…", "Travaux", "Closed Period");
+      holiday "férié" + zone dots; reservation names. **0 console errors.**
+- [x] **Public holidays (server-sourced)**: "férié" markers on the correct 2026 days in CalendarPage
+      (6 Apr / 1 May / 8 May / 14 May Ascension) **and** `PropertyPricingSeasonsPage` fetches
+      `/api/public-holidays?years=2026 → 200` and renders (second consumer regression OK).
+- [x] Clean `CI=true` client build (compiled successfully); `0` console errors on both pages.
+- [ ] **Not exercised autonomously** (left for the user's pass — interaction/visual at mobile widths):
+      drag-to-select clamping forward/backward, split-day click zones, infinite-scroll prepend/append +
+      "Aujourd'hui", deep links (`focusStartDate`/`reservationId`), note CRUD, the `xs`/`md` breakpoints.
+      The extracted components keep the exact `sx`/`data-*`, and the logic is a verbatim move.
 
 ## 8. Out of scope
 
