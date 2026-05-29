@@ -87,7 +87,13 @@ function createPricingTestDb() {
       freeMinutes INTEGER DEFAULT 0,
       PRIMARY KEY (propertyId, resourceId)
     );
+
+    CREATE TABLE app_settings (id INTEGER PRIMARY KEY, vatRateAccommodation REAL, vatRateStandard REAL);
   `);
+
+  // Global VAT now drives the engine. These tests predate the 2-rate model and assume 20% everywhere,
+  // so seed both rates to 20 to keep their (VAT-derived) expectations valid.
+  db.prepare('INSERT INTO app_settings (id, vatRateAccommodation, vatRateStandard) VALUES (1, 20, 20)').run();
 
   db.prepare(`
     INSERT INTO properties (

@@ -788,6 +788,18 @@ tryAddAppSettingsCol('companyBic', "ALTER TABLE app_settings ADD COLUMN companyB
 tryAddAppSettingsCol('companyBankName', "ALTER TABLE app_settings ADD COLUMN companyBankName TEXT DEFAULT ''");
 tryAddAppSettingsCol('quoteFooterText', "ALTER TABLE app_settings ADD COLUMN quoteFooterText TEXT DEFAULT ''");
 
+// Global VAT rates (2-rate model): accommodation vs everything else (options/resources). Replaces the
+// per-property vatPercentage* columns, now dormant. Defaults 10/20; backfilled once from any existing
+// property's rates so a single-gîte install keeps its configured rates.
+tryAddAppSettingsCol('vatRateAccommodation', "ALTER TABLE app_settings ADD COLUMN vatRateAccommodation REAL DEFAULT 10");
+tryAddAppSettingsCol('vatRateStandard', "ALTER TABLE app_settings ADD COLUMN vatRateStandard REAL DEFAULT 20");
+if (!appSettingsCols.includes('vatRateAccommodation')) {
+  const anyProp = db.prepare("SELECT vatPercentageAccommodation AS acc, vatPercentageOptions AS std FROM properties ORDER BY id LIMIT 1").get();
+  const acc = anyProp && anyProp.acc != null ? anyProp.acc : 10;
+  const std = anyProp && anyProp.std != null ? anyProp.std : 20;
+  db.prepare("UPDATE app_settings SET vatRateAccommodation = ?, vatRateStandard = ? WHERE id = 1").run(acc, std);
+}
+
 // ---------- DEVIS ↔ RESERVATION FUSION ----------
 // Devis are unified into `reservations` (kind='devis'); their lines live in the reservation_* children.
 // Fresh installs never create devis_* tables. Existing installs are migrated ONCE (after an automatic
