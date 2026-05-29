@@ -159,7 +159,7 @@ function createPropertyIcalModel(database) {
         `);
         const getReservationById = database.prepare('SELECT id, sourceType, icalSyncLocked FROM reservations WHERE id = ?');
         const listSourceReservationsByDates = database.prepare(`
-          SELECT id, sourceType, icalSyncLocked, sourceIcalEventUid, notes
+          SELECT id, sourceType, icalSyncLocked, sourceIcalEventUid, notes, icalOriginalSummary
           FROM reservations
           WHERE sourceType = 'ical'
             AND sourceIcalSourceId = ?
@@ -181,8 +181,8 @@ function createPropertyIcalModel(database) {
             depositAmount, depositDueDate, depositPaid,
             balanceAmount, balanceDueDate, balancePaid,
             sourceType, sourcePlatformKey, sourceIcalSourceId, sourceIcalEventUid, icalSyncLocked,
-            notes, cautionAmount
-          ) VALUES (?, ?, ?, ?, ?, 0, 0, 0, NULL, NULL, NULL, ?, ?, ?, 0, 0, 0, 0, NULL, 0, 0, NULL, 0, 'ical', ?, ?, ?, 0, ?, ?)
+            notes, cautionAmount, icalOriginalSummary
+          ) VALUES (?, ?, ?, ?, ?, 0, 0, 0, NULL, NULL, NULL, ?, ?, ?, 0, 0, 0, 0, NULL, 0, 0, NULL, 0, 'ical', ?, ?, ?, 0, ?, ?, ?)
         `);
         const updateReservation = database.prepare(`
           UPDATE reservations
@@ -216,7 +216,9 @@ function createPropertyIcalModel(database) {
             if (!mapping && summaryNormalized) {
               const legacyCandidate = listSourceReservationsByDates
                 .all(source.id, event.startDate, event.endDate)
-                .find((row) => normalizeIcalSummary(extractSummaryFromIcalReservationNotes(row.notes)) === summaryNormalized);
+                // Prefer the authoritative stored original name; fall back to the legacy notes parse for
+                // pre-column rows. Robust even if the user renamed the client on the reservation.
+                .find((row) => normalizeIcalSummary(row.icalOriginalSummary || extractSummaryFromIcalReservationNotes(row.notes)) === summaryNormalized);
               if (legacyCandidate) {
                 mapping = { reservationId: Number(legacyCandidate.id), eventHash: null };
                 previousUid = String(legacyCandidate.sourceIcalEventUid || '');
@@ -254,6 +256,7 @@ function createPropertyIcalModel(database) {
                 event.uid,
                 notes,
                 property.defaultCautionAmount || 0,
+                event.summary,
               );
               const reservationId = Number(result.lastInsertRowid);
               upsertMapping.run(source.id, event.uid, reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);
@@ -279,6 +282,7 @@ function createPropertyIcalModel(database) {
                 event.uid,
                 notes,
                 property.defaultCautionAmount || 0,
+                event.summary,
               );
               const reservationId = Number(result.lastInsertRowid);
               upsertMapping.run(source.id, event.uid, reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);

@@ -18,7 +18,7 @@ const DDL = `
     depositAmount REAL, depositDueDate TEXT, depositPaid INTEGER,
     balanceAmount REAL, balanceDueDate TEXT, balancePaid INTEGER,
     sourceType TEXT, sourcePlatformKey TEXT, sourceIcalSourceId INTEGER, sourceIcalEventUid TEXT, icalSyncLocked INTEGER,
-    notes TEXT, cautionAmount REAL, updatedAt TEXT
+    notes TEXT, cautionAmount REAL, icalOriginalSummary TEXT, updatedAt TEXT
   );
   CREATE TABLE ical_sources (id INTEGER PRIMARY KEY, propertyId INTEGER, name TEXT, platformKey TEXT, platformLabel TEXT);
   CREATE TABLE ical_import_events (
@@ -115,6 +115,28 @@ test('(c) cross-platform match never overwrites a locked reservation', async () 
   assert.equal(resCount(db), 1);
   assert.equal(r.lockedCount, 1);
   assert.equal(db.prepare('SELECT endDate FROM reservations').get().endDate, '2026-07-13'); // not overwritten
+});
+
+test('legacy match is robust to notes drift via the authoritative icalOriginalSummary column', async () => {
+  const { db, model } = fresh();
+  stubFetch([{ uid: 'A1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  await model.syncSource(SOURCE_A);
+  const originalId = db.prepare('SELECT id FROM reservations').get().id;
+  assert.equal(db.prepare('SELECT icalOriginalSummary FROM reservations').get().icalOriginalSummary, 'Jean Dupont');
+
+  // The user renamed the client and the notes drifted (here the "Résumé" line is deliberately wrong),
+  // and the per-source mapping is gone (a legacy / pre-column reservation). The ONLY trustworthy trace
+  // of the original guest name is the icalOriginalSummary column.
+  db.prepare('UPDATE reservations SET notes = ? WHERE id = ?')
+    .run('Import iCal (Airbnb)\nUID: A1\nRésumé: Nom Modifié', originalId);
+  db.prepare('DELETE FROM ical_import_events WHERE sourceId = 1').run();
+
+  // Re-import the same booking → the date-scan legacy path must re-attach to the existing reservation
+  // via icalOriginalSummary (the misleading notes parse alone would miss → a duplicate).
+  stubFetch([{ uid: 'A1', start: '20260710', end: '20260713', summary: 'Jean Dupont' }]);
+  await model.syncSource(SOURCE_A);
+  assert.equal(resCount(db), 1, 'must re-attach via icalOriginalSummary despite drifted notes');
+  assert.equal(db.prepare('SELECT id FROM reservations').get().id, originalId);
 });
 
 test('cross-platform shared reservation survives until BOTH feeds drop it', async () => {
