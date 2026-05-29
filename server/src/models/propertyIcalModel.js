@@ -132,6 +132,17 @@ function createPropertyIcalModel(database) {
           ORDER BY lastSeenAt DESC
           LIMIT 1
         `);
+        // Cross-platform lookup: an existing reservation imported from ANOTHER source of the same
+        // property, matching dates + normalized guest name (excludes the current source — that's the
+        // per-source fallback above).
+        const getCrossSourceMapping = database.prepare(`
+          SELECT iie.eventUid, iie.reservationId, iie.eventHash
+          FROM ical_import_events iie
+          JOIN ical_sources s ON s.id = iie.sourceId
+          WHERE s.propertyId = ? AND iie.sourceId != ? AND iie.startDate = ? AND iie.endDate = ? AND iie.summaryNormalized = ?
+          ORDER BY iie.lastSeenAt DESC
+          LIMIT 1
+        `);
         const listMappings = database.prepare('SELECT eventUid, reservationId FROM ical_import_events WHERE sourceId = ?');
         const deleteMapping = database.prepare('DELETE FROM ical_import_events WHERE sourceId = ? AND eventUid = ?');
         const upsertMapping = database.prepare(`
@@ -209,6 +220,17 @@ function createPropertyIcalModel(database) {
               if (legacyCandidate) {
                 mapping = { reservationId: Number(legacyCandidate.id), eventHash: null };
                 previousUid = String(legacyCandidate.sourceIcalEventUid || '');
+              }
+            }
+
+            // Cross-platform de-dup: the SAME booking can appear in several platforms' feeds (same dates +
+            // same guest name, different source + UID). Map it to the existing reservation from the other
+            // source instead of creating a duplicate. previousUid stays this event's uid so the other
+            // source's mapping is NOT removed — both sources then reference the one reservation.
+            if (!mapping && summaryNormalized) {
+              const crossSource = getCrossSourceMapping.get(source.propertyId, source.id, event.startDate, event.endDate, summaryNormalized);
+              if (crossSource) {
+                mapping = { reservationId: Number(crossSource.reservationId), eventHash: crossSource.eventHash };
               }
             }
 
@@ -305,10 +327,15 @@ function createPropertyIcalModel(database) {
           const staleMappings = listMappings
             .all(source.id)
             .filter((row) => !seenUids.has(row.eventUid));
+          const countMappingsForReservation = database.prepare('SELECT COUNT(*) c FROM ical_import_events WHERE reservationId = ?');
           staleMappings.forEach((row) => {
-            deleteReservation.run(row.reservationId);
+            // Drop this source's mapping; only delete the reservation if no OTHER source's mapping still
+            // references it (a cross-platform-shared booking survives until every feed drops it).
             deleteMapping.run(source.id, row.eventUid);
-            removedCount += 1;
+            if (countMappingsForReservation.get(row.reservationId).c === 0) {
+              deleteReservation.run(row.reservationId);
+              removedCount += 1;
+            }
           });
 
           // Cleanup orphan clients created by iCal imports.
