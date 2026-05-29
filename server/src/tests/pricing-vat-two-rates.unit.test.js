@@ -6,8 +6,8 @@ const { calculateReservationQuote } = require('../utils/pricing').__test;
 const { roundMoney } = require('../utils/pricing');
 
 // Two-rate global VAT model: accommodation uses `app_settings.vatRateAccommodation`, everything else
-// billable (options, custom options, resources) uses `app_settings.vatRateStandard`. The per-property
-// vatPercentage* columns are dormant and must NOT drive the quote anymore.
+// billable (options, custom options, resources) uses `app_settings.vatRateStandard`. The legacy
+// per-property `vatPercentage*` columns have been dropped — only the two globals drive the quote.
 function createDb({ withSettings = true, accommodationRate = 10, standardRate = 20 } = {}) {
   const db = new Database(':memory:');
   db.exec(`
@@ -17,7 +17,6 @@ function createDb({ withSettings = true, accommodationRate = 10, standardRate = 
       defaultCheckIn TEXT DEFAULT '15:00', defaultCheckOut TEXT DEFAULT '10:00',
       touristTaxPerDayPerPerson REAL DEFAULT 0, touristTaxMode TEXT DEFAULT 'per_day_per_person',
       touristTaxPercentage REAL DEFAULT 0, touristTaxDepartmentPercentage REAL DEFAULT 0, touristTaxFixedAmount REAL DEFAULT 0,
-      vatPercentageAccommodation REAL DEFAULT 99, vatPercentageOptions REAL DEFAULT 99, vatPercentageResources REAL DEFAULT 99,
       basePriceIncludedGuests INTEGER DEFAULT 0, extraGuestPrice REAL DEFAULT 0
     );
     CREATE TABLE pricing_rules (
@@ -94,12 +93,6 @@ test('TTC totals are independent of the VAT rate (VAT is extracted, not added)',
   // Only the VAT split differs.
   assert.equal(b.accommodationVatAmount, 0);
   assert.notEqual(a.accommodationVatAmount, 0);
-});
-
-test('per-property vatPercentage* columns are ignored (set to 99 here, must not surface)', () => {
-  const q = quoteWith(createDb({ accommodationRate: 10, standardRate: 20 }));
-  assert.notEqual(q.vatPercentageAccommodation, 99);
-  assert.equal(q.vatPercentageAccommodation, 10);
 });
 
 test('missing app_settings falls back to 10 / 20 defaults', () => {

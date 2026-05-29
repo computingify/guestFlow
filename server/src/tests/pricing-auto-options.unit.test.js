@@ -30,9 +30,6 @@ function createPricingTestDb() {
       touristTaxPercentage REAL DEFAULT 0,
       touristTaxDepartmentPercentage REAL DEFAULT 0,
       touristTaxFixedAmount REAL DEFAULT 0,
-      vatPercentageAccommodation REAL DEFAULT 20,
-      vatPercentageOptions REAL DEFAULT 20,
-      vatPercentageResources REAL DEFAULT 20,
       basePriceIncludedGuests INTEGER DEFAULT 0,
       extraGuestPrice REAL DEFAULT 0
     );
@@ -101,10 +98,9 @@ function createPricingTestDb() {
       defaultCheckIn, defaultCheckOut,
       touristTaxPerDayPerPerson, touristTaxMode, touristTaxPercentage,
       touristTaxDepartmentPercentage, touristTaxFixedAmount,
-      vatPercentageAccommodation, vatPercentageOptions, vatPercentageResources,
       basePriceIncludedGuests, extraGuestPrice
     )
-    VALUES (1, 'Maison test', 30, 30, 7, '15:00', '10:00', 0, 'per_day_per_person', 0, 0, 0, 20, 20, 20, 0, 0)
+    VALUES (1, 'Maison test', 30, 30, 7, '15:00', '10:00', 0, 'per_day_per_person', 0, 0, 0, 0, 0)
   `).run();
 
   db.prepare(`
@@ -215,10 +211,10 @@ test('calculateReservationQuote excludes extra-guest surcharge from percentage t
         touristTaxPercentage = 5,
         touristTaxDepartmentPercentage = 10,
         basePriceIncludedGuests = 2,
-        extraGuestPrice = 15,
-        vatPercentageAccommodation = 20
+        extraGuestPrice = 15
     WHERE id = 1
   `).run();
+  // The accommodation VAT rate (20% here) is in app_settings — already seeded by createPricingTestDb.
 
   const quote = calculateReservationQuote({
     db,

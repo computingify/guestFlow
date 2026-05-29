@@ -56,8 +56,9 @@ standard).
    **`vatRateAccommodation`** (default **10%**) and **`vatRateStandard`** (default **20%**).
 2. **Accommodation** (the nightly stay, incl. extra-guest surcharge) uses `vatRateAccommodation`.
    **Everything else billable** — options, custom options, resources — uses `vatRateStandard`.
-3. The pricing engine, the reservation/devis quote, and the reservation **TVA summary** must read these
-   two global rates. The three per-property VAT columns are **retired** (migrated, see §5).
+3. The pricing engine, the reservation/devis quote, the **devis PDF** and the reservation **TVA summary**
+   must read these two global rates. The three per-property VAT columns are **dropped** (migrated
+   first, see §5).
 4. **No price total may change** for an existing reservation purely because of this refactor *unless* its
    stored property rates already differed from 10/20 — and any such change must be surfaced, never silent.
    Tourist tax stays out of VAT entirely (unchanged).
@@ -199,8 +200,9 @@ gross; NULL/0 for direct). `commissionAmount` is **derived** (gross − `finalPr
 - Backfill: `depositPaidDate = depositDueDate WHERE depositPaid=1`; same for balance. `clientGrossAmount`
   left NULL (legacy platform reservations have no gross until edited).
 
-**`properties`**: the three `vatPercentage*` columns are **retired** — stop reading them; **drop only after**
-the global backfill is verified (§9 decides keep-dormant vs drop).
+**`properties`**: the three `vatPercentage*` columns are **dropped** (`ALTER TABLE … DROP COLUMN`)
+*after* the backfill copies their values into the two new globals. Migration is defensive: skips the
+backfill if the old columns are already absent; skips the drop on subsequent runs.
 
 **`users`**: no schema change (uses existing `role`); seed/create an `accountant` row.
 
@@ -268,7 +270,7 @@ requires surfacing, never silent re-pricing. Stored `finalPrice` (TTC) is untouc
 - Q: **Create-accountant mechanism** — admin "Accès comptable" section in Settings (nicer for a solo owner)
   vs a `npm run create-accountant` CLI?  → A: _proposed: Settings section; confirm._
 - Q: **Retire per-property VAT columns** — keep them dormant (read nothing) or drop after backfill?
-  → A: _proposed: keep dormant one release, drop later; confirm._
+  → A: **drop** (Adrien, 2026-05-29). Migration backfills first, then `DROP COLUMN`. Done.
 - Q: **Empty month** — header-only CSV vs a friendly "aucune écriture" response? → A: _proposed: header-only._
 
 ---
@@ -277,11 +279,12 @@ requires surfacing, never silent re-pricing. Stored `finalPrice` (TTC) is untouc
 
 - **PR 1 — VAT 2-rate global refactor ✅ (`feature/vat-two-rate-global`).** Two global rates in
   `app_settings` (`vatRateAccommodation` 10, `vatRateStandard` 20), read by the pricing engine
-  (`utils/pricing.js` `getGlobalVatRates`) for the quote and by `financeModel`. Accommodation → its own
-  rate; options/custom options/resources → standard. New **Paramètres → Taux de TVA** section
-  (`SettingsVatSection`); the per-property VAT fields are removed from the property form (columns kept
-  dormant). Reservation TVA summary verified (reads the quote, so it reflects the 2 rates). Tests:
-  `pricing-vat-two-rates` (5); full server suite green (380). UI smoke pending valid credentials.
+  (`utils/pricing.js` `getGlobalVatRates`) for the quote, by `financeModel`, and by the devis PDF
+  (`utils/devisPdf.js`). Accommodation → its own rate; options/custom options/resources → standard.
+  New **Paramètres → Taux de TVA** section (`SettingsVatSection`); the per-property VAT fields are
+  removed from the property form, and the per-property `vatPercentage*` columns are **dropped** from
+  the schema (`ALTER TABLE … DROP COLUMN`) after a defensive backfill. Reservation TVA summary verified
+  (reads the quote, reflects the 2 rates). Tests: `pricing-vat-two-rates` (5).
 - **PR 2 — Payment dates + platform gross/commission ⬜.** `depositPaidDate`/`balancePaidDate`,
   `clientGrossAmount`; FinanceSection fields (platform-only gross + computed commission).
 - **PR 3 — Accountant role + read-only Comptabilité page + monthly CSV export ⬜.** Blocked on §9
