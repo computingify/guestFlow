@@ -4,6 +4,20 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+- **Self-service profile editor on `/account`** (spec `admin-account-management.md` follow-up #6).
+  A new "Mes informations" card sits **above** "Mon mot de passe" and lets every authenticated
+  user (admin or accountant) edit their own `firstName`, `lastName`, `companyName` and `notes`.
+  Email stays locked (same rule as the admin form in edit mode). **Roles are NOT exposed
+  anywhere** — neither in the UI nor accepted by the server. The new endpoint
+  `PUT /api/users/me` deliberately omits both `roles` and `email` from the model call so an
+  authenticated user cannot grant themselves admin via a hand-rolled payload (privilege guard,
+  asserted by 3 dedicated unit tests). On a successful save the page triggers `useAuth().refresh()`
+  so the sidebar + dialogs pick up the new name immediately. Field-level server errors
+  (`{ field, detail }`) land under the matching input; generic errors fall to the page snackbar.
+  Tests: 6 new server cases (`users-controller`), 7 new client cases (`SelfProfileSection`), and
+  4 new page cases (`UserManagementPage`). Full suite green at 63 / 63 server + 37 / 37 client.
+
 ### Changed
 - **Sidebar is rendered by a single code path for every role** (spec
   `admin-account-management.md` follow-up #5). The dedicated accountant branch is gone — there's

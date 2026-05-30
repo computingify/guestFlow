@@ -385,3 +385,108 @@ test('getMe: returns the safe user from the model (re-fetched)', () => {
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.user.email, 'a@b.c');
 });
+
+// ----- updateSelf -----
+// PUT /api/users/me — the self-service profile editor on /account. Every authenticated user
+// (admin OR accountant) can update their own identity fields, but NEVER their email or roles
+// (handled at the controller level — the model would accept a roles array if passed, so the
+// controller MUST omit it for self-updates).
+
+test('updateSelf: updates identity fields on the logged-in user', () => {
+  const usersModel = makeFakeUsersModel({
+    initialUsers: [{ id: 7, firstName: 'A', lastName: 'B', email: 'a@b.c', companyName: '', notes: '', roles: ['accountant'], isActive: true, mustChangePassword: false, lastLoginAt: '2026-05-30' }],
+  });
+  const c = buildSubject({ usersModel, settingsModel: makeFakeSettingsModel() });
+  const res = fakeRes();
+  c.updateSelf({
+    user: { id: 7, roles: ['accountant'] },
+    body: { firstName: 'Marie', lastName: 'Dupont', companyName: 'Solio', notes: 'Comptable principal' },
+  }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.user.firstName, 'Marie');
+  assert.equal(res.body.user.lastName, 'Dupont');
+  assert.equal(res.body.user.companyName, 'Solio');
+  assert.equal(res.body.user.notes, 'Comptable principal');
+  assert.equal(res.body.user.email, 'a@b.c', 'email is not touched');
+  // The model was called with the right id + payload — and crucially WITHOUT a roles key.
+  assert.equal(usersModel.calls.length, 1);
+  assert.equal(usersModel.calls[0].fn, 'updateUser');
+  assert.equal(usersModel.calls[0].id, 7);
+  assert.equal(Object.prototype.hasOwnProperty.call(usersModel.calls[0].payload, 'roles'), false,
+    'roles must NEVER be forwarded — self privilege escalation guard');
+});
+
+test('updateSelf: a roles field in the body is IGNORED — user cannot grant themselves admin', () => {
+  const usersModel = makeFakeUsersModel({
+    initialUsers: [{ id: 7, firstName: 'A', lastName: 'B', email: 'a@b.c', companyName: '', notes: '', roles: ['accountant'], isActive: true, mustChangePassword: false, lastLoginAt: '2026-05-30' }],
+  });
+  const c = buildSubject({ usersModel, settingsModel: makeFakeSettingsModel() });
+  const res = fakeRes();
+  c.updateSelf({
+    user: { id: 7, roles: ['accountant'] },
+    body: { firstName: 'X', lastName: 'Y', roles: ['admin', 'accountant'] }, // attacker tries to add admin
+  }, res);
+
+  assert.equal(res.statusCode, 200);
+  // Model call did not include roles → preserves the existing ones.
+  assert.equal(Object.prototype.hasOwnProperty.call(usersModel.calls[0].payload, 'roles'), false);
+  // And the response carries the unchanged accountant role.
+  assert.deepEqual(res.body.user.roles, ['accountant']);
+});
+
+test('updateSelf: an email field in the body is IGNORED — email stays locked', () => {
+  const usersModel = makeFakeUsersModel({
+    initialUsers: [{ id: 7, firstName: 'A', lastName: 'B', email: 'a@b.c', companyName: '', notes: '', roles: ['accountant'], isActive: true, mustChangePassword: false, lastLoginAt: '2026-05-30' }],
+  });
+  const c = buildSubject({ usersModel, settingsModel: makeFakeSettingsModel() });
+  const res = fakeRes();
+  c.updateSelf({
+    user: { id: 7, roles: ['accountant'] },
+    body: { firstName: 'X', lastName: 'Y', email: 'attacker@evil.com' },
+  }, res);
+
+  assert.equal(res.statusCode, 200);
+  // Model call did not include email.
+  assert.equal(Object.prototype.hasOwnProperty.call(usersModel.calls[0].payload, 'email'), false);
+  // And the response keeps the original email.
+  assert.equal(res.body.user.email, 'a@b.c');
+});
+
+test('updateSelf: empty firstName / lastName → 400 (same rules as admin create)', () => {
+  const usersModel = makeFakeUsersModel({
+    initialUsers: [{ id: 7, firstName: 'A', lastName: 'B', email: 'a@b.c', companyName: '', notes: '', roles: ['accountant'], isActive: true, mustChangePassword: false, lastLoginAt: '2026-05-30' }],
+  });
+  const c = buildSubject({ usersModel, settingsModel: makeFakeSettingsModel() });
+
+  const r1 = fakeRes();
+  c.updateSelf({ user: { id: 7 }, body: { firstName: '', lastName: 'B' } }, r1);
+  assert.equal(r1.statusCode, 400);
+  assert.equal(r1.body.error, 'FIRSTNAME_REQUIRED');
+
+  const r2 = fakeRes();
+  c.updateSelf({ user: { id: 7 }, body: { firstName: 'A', lastName: '   ' } }, r2);
+  assert.equal(r2.statusCode, 400);
+  assert.equal(r2.body.error, 'LASTNAME_REQUIRED');
+
+  // Nothing was persisted on either failure.
+  assert.equal(usersModel.calls.length, 0);
+});
+
+test('updateSelf: 401 when there is no req.user', () => {
+  const usersModel = makeFakeUsersModel();
+  const c = buildSubject({ usersModel, settingsModel: makeFakeSettingsModel() });
+  const res = fakeRes();
+  c.updateSelf({ body: { firstName: 'X', lastName: 'Y' } }, res);
+  assert.equal(res.statusCode, 401);
+  assert.equal(res.body.error, 'UNAUTHENTICATED');
+});
+
+test('updateSelf: 404 when the session user no longer exists in the DB (deleted while logged in)', () => {
+  const usersModel = makeFakeUsersModel(); // empty
+  const c = buildSubject({ usersModel, settingsModel: makeFakeSettingsModel() });
+  const res = fakeRes();
+  c.updateSelf({ user: { id: 99 }, body: { firstName: 'X', lastName: 'Y' } }, res);
+  assert.equal(res.statusCode, 404);
+  assert.equal(res.body.error, 'USER_NOT_FOUND');
+});
