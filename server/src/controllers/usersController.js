@@ -7,9 +7,9 @@
  */
 
 const defaultUsersModel = require('../models/usersModel');
-const { ROLES } = require('../constants/accounting');
+const { ROLES, ACCOUNTANT } = require('../constants/roles');
 
-const ALLOWED_ROLES = new Set(Object.values(ROLES));
+const ALLOWED_ROLES = new Set(ROLES);
 const MIN_PASSWORD_LENGTH = 10;
 
 function isValidEmail(value) {
@@ -28,7 +28,7 @@ function createUsersController(users) {
       if (!password || String(password).length < MIN_PASSWORD_LENGTH) {
         return res.status(400).json({ error: 'PASSWORD_TOO_SHORT' });
       }
-      const normalizedRole = String(role || ROLES.ACCOUNTANT);
+      const normalizedRole = String(role || ACCOUNTANT);
       if (!ALLOWED_ROLES.has(normalizedRole)) return res.status(400).json({ error: 'INVALID_ROLE' });
       try {
         const user = users.createUser({ email, password, role: normalizedRole });
