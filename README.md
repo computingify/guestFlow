@@ -326,29 +326,66 @@ The script includes:
 
 The application will be available on port 4000 by default.
 
-#### 🔒 HTTPS at the network edge — opt-in via `HTTPS_ENABLED`
+#### 🔒 HTTPS — production setup
 
-`NODE_ENV=production` only controls the build mode and CSP. **HSTS** + CSP's
-`upgrade-insecure-requests` + the `Secure` flag on the session cookie are **off by default** and
-must be opted into by setting `HTTPS_ENABLED=true` in the server env.
+GuestFlow's production stack on the Raspberry Pi runs Node **directly** on `:4000` over HTTPS
+(no Nginx / Caddy in front). TLS is enabled by the `HTTPS_ENABLED=true` env var and Node loads a
+self-signed cert from the paths in `TLS_CERT_PATH` / `TLS_KEY_PATH`. The GitHub Actions deploy
+workflow generates the cert on first deploy and stores it in `~/guestflow/certs/` (persistent —
+never deleted by subsequent deploys, never regenerated automatically).
 
 | Deployment | `NODE_ENV` | `HTTPS_ENABLED` | Result |
 |---|---|---|---|
-| Local dev | `development` (or unset) | unset | Plain HTTP, no CSP, no HSTS. |
-| Prod, plain HTTP (Raspberry Pi behind a LAN, dev tunnel, etc.) | `production` | unset | Full SPA CSP, **no HSTS**, **no upgrade-insecure-requests**, session cookie sent over HTTP. |
-| Prod, HTTPS at the edge (Nginx / Caddy / Cloudflare with valid cert) | `production` | `true` | Full SPA CSP **+ HSTS (1 year, includeSubDomains)** + upgrade-insecure-requests + `Secure` cookie. |
+| Local dev | `development` (or unset) | unset | Plain HTTP on `:4000`, no CSP, no HSTS, `Secure` cookie off. |
+| Prod, plain HTTP (rare, only if you explicitly disable TLS) | `production` | unset | Full SPA CSP, **no HSTS**, no upgrade-insecure-requests, `Secure` cookie off. |
+| **Prod, HTTPS direct (default for the Pi)** | `production` | `true` | Full SPA CSP **+ HSTS (1 year, includeSubDomains)** + upgrade-insecure-requests + `Secure` cookie. Requires valid `TLS_CERT_PATH` / `TLS_KEY_PATH` — the server **refuses to boot** otherwise (no silent HTTP downgrade). |
 
-Turning HSTS on when the network edge is plain HTTP makes Safari (and any compliant browser)
-refuse to load the SPA assets (`"Une erreur TLS a provoqué l'échec de la connexion sécurisée"`)
-and the symptom **persists until HSTS expires or is cleared from the browser** — that's the
-whole point of HSTS. The rule pairs are pinned by
-[`server/src/tests/security-config.unit.test.js`](server/src/tests/security-config.unit.test.js).
+The rule table is pinned by
+[`server/src/tests/security-config.unit.test.js`](server/src/tests/security-config.unit.test.js)
+and [`server/src/tests/https-bootstrap.unit.test.js`](server/src/tests/https-bootstrap.unit.test.js).
 
-##### Clearing HSTS from a browser that already cached the wrong policy
+##### Generating the self-signed cert manually
+
+The deploy workflow runs this automatically when no cert exists. To run it by hand (e.g. to
+regenerate on cert expiry or to swap IPs):
+
+```bash
+# Default: auto-detect every local IPv4 + hostname + localhost
+./server/scripts/generate-self-signed-cert.sh
+
+# Explicit SANs
+./server/scripts/generate-self-signed-cert.sh 192.168.0.196 guestflow.local
+
+# Custom output directory (the deploy workflow uses ~/guestflow/certs/)
+OUT_DIR=~/guestflow/certs ./server/scripts/generate-self-signed-cert.sh
+
+# Re-generate even if a cert already exists
+./server/scripts/generate-self-signed-cert.sh --force
+```
+
+The cert is valid for **1 year**. When it nears expiry, regenerate (`--force`) and restart PM2.
+
+##### Trusting the cert in the browser
+
+The cert is self-signed so browsers will warn on the first visit. Two paths:
+
+- **Easy path — accept once per device**. Open `https://192.168.0.196:4000`, Safari shows
+  *"Cette connexion n'est pas privée"*, click *Détails* → *Afficher ce site web*. Chrome:
+  *Avancé* → *Continuer vers...*. After acceptance, HSTS (issued by the server) pins HTTPS on
+  that hostname for 1 year, so the warning is gone until the cert is regenerated.
+
+- **Clean path — install the cert as trusted on each device** (no warning at all). Copy
+  `~/guestflow/certs/server.crt` from the Pi to your Mac / iPhone, double-click to import into
+  the Keychain (Mac) / Profil installé (iPhone), then mark it as *Toujours approuver* for SSL.
+  More involved but no per-device click-through.
+
+##### Clearing HSTS if the browser cached the wrong policy
+
+If a previous deploy emitted HSTS and the current deploy is plain HTTP (or the cert changed),
+the browser will refuse to connect until HSTS expires. To clear it manually:
 
 - **Safari macOS** : Develop menu (enable in *Préférences → Avancées → Show Develop menu*) →
-  *Empty Caches*, OR *Réglages → Confidentialité → Gérer les données de sites web* → chercher
-  votre domaine → *Supprimer*. If that's not enough, in Terminal:
+  *Empty Caches*, OR in Terminal:
   ```bash
   rm ~/Library/Cookies/HSTS.plist
   killall Safari

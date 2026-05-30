@@ -422,6 +422,26 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - Google Calendar helpers (`getGoogleCalendarConfig`, `getGoogleCalendarClient`, `sanitizePrivateKey`) moved from `routes/googleCalendar.js` to `utils/googleCalendarClient.js`. `googleapis` is now `require`'d lazily so a missing dependency does not break boot or other endpoints.
 - `routes/devis.js` now sources app settings via `settingsModel` (instead of the removed `db.getAppSettings`).
 
+### Added
+- **Production now serves HTTPS directly on `:4000`** (no Nginx / Caddy in front). On first deploy
+  the GitHub Actions workflow runs `server/scripts/generate-self-signed-cert.sh` and stores the
+  result in `~/guestflow/certs/` (persistent across deploys), then PM2 starts with
+  `HTTPS_ENABLED=true` + `TLS_CERT_PATH` / `TLS_KEY_PATH` pointing at the persistent location.
+  Node loads the cert via the new `server/src/utils/httpsBootstrap.js` builders and uses
+  `https.createServer` instead of plain `http.createServer`. The cert generation script
+  auto-detects every local IPv4 + hostname + localhost for the SAN list; it can also be invoked
+  manually with explicit IPs / hostnames or with `--force` to regenerate before expiry. Cert + key
+  are gitignored (`server/certs/*.crt` / `*.key`). Bootstrap pins a hard safety: when
+  `HTTPS_ENABLED=true` but the cert or key files are missing, the server **refuses to boot** with
+  a clear error pointing at the helper script — no silent downgrade to HTTP that would leak a
+  `Secure` cookie over plain transport. 9 new test cases in `https-bootstrap.unit.test.js` lock
+  the boot decision (HTTP path, HTTPS path, both files missing, one missing, env var overrides,
+  no-app guard). The browser warns once per device that the cert isn't trusted by a known CA
+  (expected — self-signed for a LAN-only deploy); after acceptance HSTS makes HTTPS sticky for
+  1 year. README §HTTPS documents the per-device cert-trust workflow (accept-once OR install
+  rootCA) + the HSTS-clearing instructions for every major browser. Access changes from
+  `http://192.168.0.196:4000` to `https://192.168.0.196:4000`.
+
 ### Fixed
 - **Production deploy over plain HTTP hit "Une erreur TLS a provoqué l'échec de la connexion
   sécurisée".** When the Helmet config was introduced (V02.00.00), HSTS + CSP's
@@ -441,8 +461,10 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
     directives include `upgrade-insecure-requests`, exactly what we are trying NOT to emit when
     HTTPS isn't available. Listing the directives ourselves makes it impossible for a future
     Helmet release to silently turn the upgrade back on.
-  - GitHub Actions deploy workflow leaves `HTTPS_ENABLED` unset so the Pi serves plain HTTP without
-    HSTS — turning it on is now a deliberate one-line edit once TLS lands at the edge.
+  - GitHub Actions deploy workflow now sets `HTTPS_ENABLED=true` (with `TLS_CERT_PATH` /
+    `TLS_KEY_PATH` pointing at the persistent `~/guestflow/certs/` directory provisioned in the
+    new "Added" entry above) so the Pi serves HTTPS directly. If you ever need to disable TLS
+    (private LAN tunnel, etc.) it's a one-line unset in the deploy workflow.
   - README §HTTPS gets the full rule table + per-browser HSTS-clearing instructions (Safari macOS
     + iOS, Chrome `chrome://net-internals/#hsts`, Firefox).
   - Regression test `server/src/tests/security-config.unit.test.js` (11 cases) pins the entire

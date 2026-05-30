@@ -14,6 +14,7 @@ const {
   buildHelmetOptions,
   buildSessionCookieOptions,
 } = require('./utils/securityConfig');
+const { buildServer } = require('./utils/httpsBootstrap');
 
 loadLocalEnv();
 const SqliteStore = require('better-sqlite3-session-store')(session);
@@ -156,10 +157,26 @@ app.use('/api', (req, res) => {
 });
 
 const PORT = process.env.PORT || 4000;
-const server = app.listen(PORT, () => {
-  console.log(`GuestFlow API running on http://localhost:${PORT}`);
-  logErrorMarker(`=== SERVER BOOT COMPLETE (port ${PORT}) ===`);
-  
+// Picks plain HTTP or HTTPS based on HTTPS_ENABLED. When HTTPS is on but the cert/key are
+// missing, `buildServer` throws — better to refuse to boot than to silently downgrade and leak
+// a Secure session cookie over plain transport. See utils/httpsBootstrap.js for the rules.
+let serverHandle;
+let serverProtocol = 'http';
+try {
+  const built = buildServer({ httpsEnabled, app });
+  serverHandle = built.server;
+  serverProtocol = built.protocol;
+  if (built.tlsInfo) {
+    console.log(`TLS material loaded — cert: ${built.tlsInfo.certPath}, key: ${built.tlsInfo.keyPath}`);
+  }
+} catch (err) {
+  logErrorMarker(`Boot failed: ${err.message}`);
+  process.exit(1);
+}
+const server = serverHandle.listen(PORT, () => {
+  console.log(`GuestFlow API running on ${serverProtocol}://localhost:${PORT}`);
+  logErrorMarker(`=== SERVER BOOT COMPLETE (${serverProtocol}, port ${PORT}) ===`);
+
   // Start scheduled tasks (like iCal auto-sync)
   startScheduledTasks();
 });
