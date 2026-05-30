@@ -263,6 +263,59 @@ export default function FinanceSection() {
               </Grid>
             </Box>
 
+            {Number(pricingQuote?.complementAmount || 0) > 0 && (
+              <>
+                <Divider />
+                <Box sx={{ bgcolor: 'rgba(255, 152, 0, 0.06)', p: 2, borderRadius: 1, border: '1px dashed', borderColor: 'warning.main' }}>
+                  <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Complément à percevoir</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Le total séjour a évolué après acompte + solde — montant non couvert à percevoir (souvent en fin de séjour pour des prestations sur place).
+                      </Typography>
+                    </Box>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: 'warning.dark' }}>
+                      {Number(pricingQuote.complementAmount).toFixed(2).replace('.', ',')} €
+                    </Typography>
+                  </Stack>
+                  <Button
+                    fullWidth
+                    variant={form.complementPaid ? 'contained' : 'outlined'}
+                    color={form.complementPaid ? 'success' : 'warning'}
+                    onClick={async () => {
+                      const next = !form.complementPaid;
+                      const today = todayStr();
+                      const date = next ? (form.complementPaidDate || today) : '';
+                      if (isReservationLocked && editingReservationId) {
+                        await api.markPayment(editingReservationId, { complementPaid: next, complementPaidDate: date || null });
+                      }
+                      updateForm({ complementPaid: next, complementPaidDate: date });
+                    }}
+                    sx={{ textTransform: 'none', justifyContent: 'flex-start' }}
+                  >
+                    {form.complementPaid ? 'Complément payé' : 'Marquer complément payé'}
+                  </Button>
+                  {form.complementPaid && (
+                    <TextField
+                      label="Payé le"
+                      type="date"
+                      value={form.complementPaidDate || ''}
+                      InputLabelProps={{ shrink: true }}
+                      onChange={async (e) => {
+                        const v = e.target.value;
+                        updateForm({ complementPaidDate: v });
+                        if (isReservationLocked && editingReservationId) {
+                          await api.markPayment(editingReservationId, { complementPaid: true, complementPaidDate: v || null });
+                        }
+                      }}
+                      fullWidth
+                      sx={{ mt: 1.5 }}
+                    />
+                  )}
+                </Box>
+              </>
+            )}
+
             <Divider />
 
             <Box>

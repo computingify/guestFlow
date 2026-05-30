@@ -36,6 +36,7 @@ function createAccountingModel(database) {
                r.platform, r.discountPercent, r.customPrice,
                r.depositAmount, r.depositPaid, r.depositPaidDate,
                r.balanceAmount, r.balancePaid, r.balancePaidDate,
+               r.complementAmount, r.complementPaid, r.complementPaidDate,
                r.finalPrice, r.clientGrossAmount,
                r.totalPrice, r.touristTaxTotal,
                c.firstName, c.lastName,
@@ -48,9 +49,11 @@ function createAccountingModel(database) {
             (r.depositPaid = 1 AND r.depositPaidDate >= ? AND r.depositPaidDate < ?)
             OR
             (r.balancePaid = 1 AND r.balancePaidDate >= ? AND r.balancePaidDate < ?)
+            OR
+            (r.complementPaid = 1 AND r.complementPaidDate >= ? AND r.complementPaidDate < ?)
           )
-        ORDER BY COALESCE(r.depositPaidDate, r.balancePaidDate), r.id
-      `).all(from, nextMonth, from, nextMonth);
+        ORDER BY COALESCE(r.depositPaidDate, r.balancePaidDate, r.complementPaidDate), r.id
+      `).all(from, nextMonth, from, nextMonth, from, nextMonth);
 
       // For each reservation, recompute its quote (which loads options/resources/nights from the DB)
       // to get the per-bucket HT + VAT splits. The quote ignores any encaissement-side dates, so this
@@ -58,10 +61,10 @@ function createAccountingModel(database) {
       return reservations.flatMap((row) => {
         const quote = computeQuoteForReservation(database, row);
         const entries = [];
-        const depositInMonth = row.depositPaid && row.depositPaidDate && row.depositPaidDate >= from && row.depositPaidDate < nextMonth;
-        const balanceInMonth = row.balancePaid && row.balancePaidDate && row.balancePaidDate >= from && row.balancePaidDate < nextMonth;
-        if (depositInMonth) entries.push(buildEntry(row, quote, 'deposit'));
-        if (balanceInMonth) entries.push(buildEntry(row, quote, 'balance'));
+        const inMonth = (paid, date) => paid && date && date >= from && date < nextMonth;
+        if (inMonth(row.depositPaid, row.depositPaidDate))     entries.push(buildEntry(row, quote, 'deposit'));
+        if (inMonth(row.balancePaid, row.balancePaidDate))     entries.push(buildEntry(row, quote, 'balance'));
+        if (inMonth(row.complementPaid, row.complementPaidDate)) entries.push(buildEntry(row, quote, 'complement'));
         return entries;
       });
     },
@@ -107,17 +110,30 @@ function computeQuoteForReservation(database, row) {
 // Shape an entry the export engine consumes. Buckets carry the HT, VAT amount and VAT rate
 // (the engine has already extracted them from TTC).
 function buildEntry(row, quote, kind) {
-  const totalTtc = Number(quote.finalPrice || row.finalPrice || 0);
-  const encaissementTtc = Number(kind === 'deposit' ? row.depositAmount : row.balanceAmount) || 0;
-  const fraction = totalTtc > 0 ? encaissementTtc / totalTtc : 0;
+  // Pro-rata is computed against the *total stay TTC* (finalPrice + tourist tax) so the 3 encaissement
+  // kinds sum back to 100 % of the stay: deposit + balance + complement = totalStayPrice.
+  const finalPriceTtc = Number(quote.finalPrice || row.finalPrice || 0);
+  const totalStayTtc = finalPriceTtc + Number(row.touristTaxTotal || 0);
+  const amountByKind = {
+    deposit:    Number(row.depositAmount)    || 0,
+    balance:    Number(row.balanceAmount)    || 0,
+    complement: Number(row.complementAmount) || 0,
+  };
+  const dateByKind = {
+    deposit:    row.depositPaidDate,
+    balance:    row.balancePaidDate,
+    complement: row.complementPaidDate,
+  };
+  const encaissementTtc = amountByKind[kind] || 0;
+  const fraction = totalStayTtc > 0 ? encaissementTtc / totalStayTtc : 0;
   return {
     reservationId: row.id,
     kind,
-    paidDate: kind === 'deposit' ? row.depositPaidDate : row.balancePaidDate,
+    paidDate: dateByKind[kind] || null,
     client: { firstName: row.firstName || '', lastName: row.lastName || '' },
     platform: row.platform || 'direct',
     clientGrossAmount: row.clientGrossAmount == null ? null : Number(row.clientGrossAmount),
-    finalPrice: totalTtc,
+    finalPrice: finalPriceTtc,
     encaissementTtc,
     fraction,
     buckets: [

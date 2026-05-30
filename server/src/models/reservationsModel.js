@@ -58,6 +58,9 @@ function createReservationsModel(database) {
           customPrice: row.customPrice == null ? '' : Number(row.customPrice),
           clientGrossAmount: row.clientGrossAmount == null ? null : Number(row.clientGrossAmount),
           commissionAmount: deriveCommissionAmount(row),
+          complementAmount: Number(row.complementAmount || 0),
+          complementPaid: Number(row.complementPaid || 0),
+          complementPaidDate: row.complementPaidDate || null,
           remainingDue: payment.remainingDue,
           paymentComplete: payment.paymentComplete,
         };
@@ -137,6 +140,9 @@ function createReservationsModel(database) {
       reservation.customPrice = reservation.customPrice == null ? '' : Number(reservation.customPrice);
       reservation.clientGrossAmount = reservation.clientGrossAmount == null ? null : Number(reservation.clientGrossAmount);
       reservation.commissionAmount = deriveCommissionAmount(reservation);
+      reservation.complementAmount = Number(reservation.complementAmount || 0);
+      reservation.complementPaid = Number(reservation.complementPaid || 0);
+      reservation.complementPaidDate = reservation.complementPaidDate || null;
       const payment = computePaymentStatus(reservation);
       reservation.remainingDue = payment.remainingDue;
       reservation.paymentComplete = payment.paymentComplete;
@@ -210,6 +216,9 @@ function createReservationsModel(database) {
         balanceAmount: Number(row.balanceAmount || 0),
         balanceDueDate: row.balanceDueDate || null,
         balancePaidDate: row.balancePaidDate || null,
+        complementAmount: Number(row.complementAmount || 0),
+        complementPaid: Number(row.complementPaid || 0),
+        complementPaidDate: row.complementPaidDate || null,
         clientGrossAmount: row.clientGrossAmount == null ? null : Number(row.clientGrossAmount),
         notes: row.notes || null,
         cautionAmount: Number(row.cautionAmount || 0),
@@ -420,7 +429,7 @@ function createReservationsModel(database) {
         singleBeds, doubleBeds, babyBeds, checkInTime, checkOutTime, platform, customPrice,
         depositDueDate, depositPaid, depositPaidDate, balanceDueDate, balancePaid, balancePaidDate, notes,
         cautionAmount, cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate,
-        extraGuestSurchargeOffered, clientGrossAmount } = payload;
+        extraGuestSurchargeOffered, clientGrossAmount, complementPaid, complementPaidDate } = payload;
       const grossForPlatform = String(platform || 'direct').toLowerCase() !== 'direct' && clientGrossAmount != null && clientGrossAmount !== ''
         ? Number(clientGrossAmount)
         : null;
@@ -429,7 +438,8 @@ function createReservationsModel(database) {
           singleBeds=?, doubleBeds=?, babyBeds=?,
           checkInTime=?, checkOutTime=?,
           platform=?, totalPrice=?, touristTaxRate=?, touristTaxTotal=?, discountPercent=?, customPrice=?, finalPrice=?, depositAmount=?, depositDueDate=?,
-          depositPaid=?, depositPaidDate=?, balanceAmount=?, balanceDueDate=?, balancePaid=?, balancePaidDate=?, notes=?,
+          depositPaid=?, depositPaidDate=?, balanceAmount=?, balanceDueDate=?, balancePaid=?, balancePaidDate=?,
+          complementAmount=?, complementPaid=?, complementPaidDate=?, notes=?,
           cautionAmount=?, cautionReceived=?, cautionReceivedDate=?, cautionReturned=?, cautionReturnedDate=?, extraGuestSurchargeOffered=?, icalSyncLocked=?,
           blocksPreviousNight=?, blocksNextNight=?, clientGrossAmount=?,
           updatedAt=datetime('now')
@@ -445,6 +455,7 @@ function createReservationsModel(database) {
         depositPaid ? 1 : 0, depositPaid ? (depositPaidDate || null) : null,
         quote.balanceAmount || 0, quote.balanceDueDate || balanceDueDate || null,
         balancePaid ? 1 : 0, balancePaid ? (balancePaidDate || null) : null,
+        Number(quote.complementAmount || 0), complementPaid ? 1 : 0, complementPaid ? (complementPaidDate || null) : null,
         sentenceCase(notes),
         cautionAmount || 0, cautionReceived ? 1 : 0, cautionReceivedDate || null,
         cautionReturned ? 1 : 0, cautionReturnedDate || null, extraGuestSurchargeOffered ? 1 : 0, nextIcalSyncLocked,

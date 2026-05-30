@@ -291,7 +291,7 @@ export default function AccountingPage() {
 // One card per encaissement. Header shows the date, kind (acompte / solde), client, encaissement TTC,
 // and the platform info if non-direct. The body is a balanced mini-journal coloured by line type.
 
-const KIND_LABELS = { deposit: 'Acompte', balance: 'Solde' };
+const KIND_LABELS = { deposit: 'Acompte', balance: 'Solde', complement: 'Complément' };
 
 function JournalEntryCard({ entry, canOpenReservation = false }) {
   const isPlatform = Boolean(entry.platform.platform);

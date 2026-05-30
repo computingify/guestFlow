@@ -144,6 +144,23 @@ standard).
     caption `XX % du séjour (YYY,YY €)` makes the pro-rata and the total stay TTC visible at a glance
     (e.g. `30 % du séjour (360,00 €)` for an acompte on a 360 € stay). Together with the per-line
     account labels (rule 24) this is enough on-screen context — no separate explanatory panel.
+28. **Complément à percevoir (3rd encaissement slot)** — when both the deposit and the balance are
+    marked paid and the total stay TTC has *since* grown (typical case: options/extras added after the
+    payments were recorded), the pricing engine surfaces the leftover as a **third encaissement** named
+    *Complément à percevoir*. It is **auto-derived** as `max(0, totalStayPrice − depositAmount − balanceAmount)`
+    while unpaid, and **frozen** in the DB once `complementPaid = 1` (same model as deposit/balance —
+    once the money has actually been received, the engine never erodes it). On the reservation form, a
+    new orange-tinted block appears under Solde **only when `complementAmount > 0`**, with a single
+    "Marquer complément payé" button and a "Payé le" date input (defaults to today on flip-to-paid,
+    cleared on flip-to-unpaid). Typically paid at end of stay for on-site extras. The accounting
+    export treats it as a 3rd encaissement type alongside deposit and balance — same balanced
+    double-entry shape, pro-rated by `complementAmount / totalStayPrice`, dated at `complementPaidDate`.
+    Deposit + Balance + Complement always sum back to `totalStayPrice` (modulo rounding).
+29. **Pro-rata base = totalStayPrice (= finalPrice + tourist tax)** — the accounting export now
+    pro-rates every encaissement against the **total stay TTC** including the tourist tax, not just
+    `finalPrice`. This was a quiet inaccuracy on prior runs (the deposit/balance percentages drifted
+    by the tourist-tax ratio); with this change Deposit + Balance + Complement = 100 % of
+    `totalStayPrice` exactly, and the per-bucket lines balance to the cent.
 
 **Edge cases:**
 - Encaissement marked paid but no real date yet (legacy rows) → backfilled to the **due date** on
@@ -231,9 +248,13 @@ All accounting/users endpoints are auth-gated; non-accounting business routes re
   and `vatPercentageOptions` (→ standard); default 10/20 if absent.
 
 **`reservations`**: add `depositPaidDate TEXT`, `balancePaidDate TEXT`, `clientGrossAmount REAL` (platform
-gross; NULL/0 for direct). `commissionAmount` is **derived** (gross − `finalPrice`), not stored.
-- Backfill: `depositPaidDate = depositDueDate WHERE depositPaid=1`; same for balance. `clientGrossAmount`
-  left NULL (legacy platform reservations have no gross until edited).
+gross; NULL/0 for direct), and **`complementAmount REAL NOT NULL DEFAULT 0`**, **`complementPaid INTEGER NOT NULL DEFAULT 0`**,
+**`complementPaidDate TEXT`** (the 3rd encaissement slot — see rule 28).
+`commissionAmount` is **derived** (gross − `finalPrice`), not stored.
+- Backfill: `depositPaidDate = depositDueDate WHERE depositPaid=1`; same for balance.
+  `clientGrossAmount` left NULL (legacy platform reservations have no gross until edited).
+  `complementAmount` backfilled on existing fully-paid reservations as `max(0, finalPrice + touristTaxTotal − depositAmount − balanceAmount)`
+  so the silent gap (e.g. reservation #12087 in production) is immediately visible after the migration.
 
 **`properties`**: the three `vatPercentage*` columns are **dropped** (`ALTER TABLE … DROP COLUMN`)
 *after* the backfill copies their values into the two new globals. Migration is defensive: skips the
@@ -272,6 +293,10 @@ requires surfacing, never silent re-pricing. Stored `finalPrice` (TTC) is untouc
 ## 7. Test plan
 
 ### Server unit tests
+- [x] `pricing-complement.unit.test.js` (7) — complement = 0 by default and when only deposit paid;
+      complement = `max(0, totalStayPrice − deposit − balance)` when both are paid; complement
+      is frozen once `complementPaid = true`; never negative on a total-price drop; deposit +
+      balance + complement always sums back to the total stay price.
 - [x] `accounting-export.unit.test.js` (19) — per-encaissement balanced lines (Σ credits == debit),
       pro-rata split, rounding residue, account mapping per bucket, VAT-account by rate,
       client-account formatting (incl. accents/hyphens/padding), platform info on debit row only,
@@ -390,6 +415,13 @@ requires surfacing, never silent re-pricing. Stored `finalPrice` (TTC) is untouc
     (e.g. `30 % du séjour (360,00 €)`, `71 % du séjour (360,00 €)`). The earlier "Comment lire ces
     écritures" info Alert was dropped on Adrien's request — the per-card caption + the account labels
     (rule 24) carry enough context on their own.
+  - **Complément à percevoir** (rule 28): brought to the surface a long-standing silent gap on
+    fully-paid reservations whose total had grown after the fact (Adrien spotted it on res #12087:
+    finalPrice 600 + tax 4,80 vs deposit 109,44 + balance 255,36 → 240 € unbilled). The engine now
+    derives the leftover, the FinanceSection shows a 3rd block when > 0, and the accounting export
+    treats it as a 3rd encaissement type (kind = 'complement'). Pro-rata base shifted from
+    `finalPrice` to `totalStayPrice` (= finalPrice + tourist tax) so D + B + C = 100 % to the cent.
+    New tests: `pricing-complement` (7). Full suite green (440).
 
   Tests: `csv` (6), `accounting-export` (19), `enforce-role-access` (8), `users-model-admin` (7).
   Full server suite green (433).

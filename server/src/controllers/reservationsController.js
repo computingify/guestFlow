@@ -318,8 +318,10 @@ function update(req, res) {
     extraGuestSurchargeOffered: req.body.extraGuestSurchargeOffered,
     depositPaid: req.body.depositPaid,
     balancePaid: req.body.balancePaid,
+    complementPaid: req.body.complementPaid,
     depositAmount: req.body.depositAmount,
     balanceAmount: req.body.balanceAmount,
+    complementAmount: req.body.complementAmount,
     offeredOptionIds: req.body.offeredOptionIds,
     lockedNightlyBreakdown: lockedPricing.lockedNightlyBreakdown,
     lockedOptionLines: lockedPricing.lockedOptionLines,
@@ -403,6 +405,7 @@ function updatePayment(req, res) {
   if (!existing) return res.status(404).json({ error: 'Réservation non trouvée' });
 
   const { depositPaid, depositPaidDate, balancePaid, balancePaidDate,
+    complementPaid, complementPaidDate,
     cautionReceived, cautionReceivedDate, cautionReturned, cautionReturnedDate,
     checkInReady, checkInDone, checkOutDone } = req.body;
   const id = req.params.id;
@@ -419,6 +422,14 @@ function updatePayment(req, res) {
     model.updatePaymentField(
       "UPDATE reservations SET balancePaid = ?, balancePaidDate = ?, updatedAt = datetime('now') WHERE id = ?",
       balancePaid ? 1 : 0, date, id,
+    );
+  }
+  if (complementPaid !== undefined) {
+    // Same model as deposit / balance — defaults to today on flip-to-paid, cleared on flip-to-unpaid.
+    const date = complementPaid ? (complementPaidDate || new Date().toISOString().split('T')[0]) : null;
+    model.updatePaymentField(
+      "UPDATE reservations SET complementPaid = ?, complementPaidDate = ?, updatedAt = datetime('now') WHERE id = ?",
+      complementPaid ? 1 : 0, date, id,
     );
   }
   if (cautionReceived !== undefined) {

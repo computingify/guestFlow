@@ -5,6 +5,20 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- **Reservation: 3rd payment slot "Complément à percevoir"** (spec
+  `accountant-accounting-export.md`, rule 28). When the deposit and the balance are marked paid and
+  the total stay TTC has *since* grown — typical case: options or extras added after the payments
+  were recorded — the pricing engine now surfaces the leftover as `complementAmount =
+  max(0, totalStayPrice − depositAmount − balanceAmount)`. The FinanceSection renders a 3rd block
+  (orange-tinted) under Solde with a single "Marquer complément payé" button + a "Payé le" date,
+  visible **only** when the complement is > 0. Once paid the amount is frozen in the DB like
+  deposit/balance — the engine never erodes received money. Typically settled at end of stay for
+  on-site extras. The accounting export treats it as a 3rd encaissement type alongside deposit and
+  balance (same balanced double-entry shape, dated at `complementPaidDate`). Migration backfills
+  the column on existing fully-paid reservations so any silent gap (e.g. production res #12087:
+  240 € unbilled) becomes immediately visible. Unit tests: `pricing-complement` (7). Full suite
+  green at 440. Also fixes a quiet inaccuracy: the export now pro-rates against `totalStayPrice`
+  (= finalPrice + tourist tax) instead of `finalPrice`, so D + B + C = 100 % exactly.
 - **Accountant access + monthly accounting CSV export** (spec
   `accountant-accounting-export.md`, PR 3 — closes the feature):
   - New **`accountant`** user role and a dedicated **`/comptabilite`** page (nested under "Suivi
@@ -379,6 +393,11 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - `db.getAppSettings` / `db.upsertAppSettings` (logic moved to `settingsModel`). `database.js` keeps only DDL + migrations + the singleton bootstrap for `app_settings`.
 
 ### Migration
+- **Complément à percevoir columns:** `reservations` gains `complementAmount REAL NOT NULL DEFAULT 0`,
+  `complementPaid INTEGER NOT NULL DEFAULT 0`, `complementPaidDate TEXT`. For existing fully-paid
+  reservations (`depositPaid = 1 AND balancePaid = 1`), `complementAmount` is backfilled to
+  `max(0, finalPrice + touristTaxTotal − depositAmount − balanceAmount)` so any silent gap from
+  before this fix is visible the moment the migration runs.
 - **Reservation payment dates + platform gross:** `reservations` gains `depositPaidDate TEXT`,
   `balancePaidDate TEXT` and `clientGrossAmount REAL`. Paid-dates are backfilled once from the
   corresponding due-dates for rows already marked paid (sensible accounting date for legacy data);
