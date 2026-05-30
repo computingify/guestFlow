@@ -95,7 +95,6 @@ export default function TouristTaxPage() {
             month={m}
             year={y}
             onChange={({ month: nm, year: ny }) => setMonth(MonthYearPicker.toYearMonth({ month: nm, year: ny }))}
-            description="Extraction mensuelle de la taxe de séjour à reverser à la collectivité."
             maxMonth={maxPastMonth}
             helperText="Uniquement les mois déjà passés."
           />

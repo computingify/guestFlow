@@ -61,15 +61,19 @@ export default function MonthYearPicker({
         <Stack
           direction={{ xs: 'column', sm: 'row' }}
           spacing={2}
-          alignItems={{ xs: 'stretch', sm: 'center' }}
+          // `flex-start` keeps the inputs themselves vertically aligned on sm+; any helperText hangs
+          // naturally below "Mois" without offsetting "Année".
+          alignItems={{ xs: 'stretch', sm: 'flex-start' }}
         >
+          {/* Both selectors share the same fixed width on sm+ so they stay visually aligned.
+              On xs they stretch to full width naturally (Stack's `alignItems: 'stretch'`). */}
           <TextField
             select
             label="Mois"
             value={month}
             onChange={(e) => onChange({ month: Number(e.target.value), year })}
             fullWidth
-            sx={{ maxWidth: { xs: '100%', sm: 200 } }}
+            sx={{ maxWidth: { xs: '100%', sm: 180 } }}
             helperText={helperText}
           >
             {MONTHS.map((label, i) => (
@@ -84,7 +88,7 @@ export default function MonthYearPicker({
             value={year}
             onChange={(e) => onChange({ month, year: Number(e.target.value) })}
             fullWidth
-            sx={{ maxWidth: { xs: '100%', sm: 140 } }}
+            sx={{ maxWidth: { xs: '100%', sm: 180 } }}
           >
             {years.map((y) => (
               <MenuItem key={y} value={y}>{y}</MenuItem>
