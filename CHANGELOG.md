@@ -331,6 +331,27 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - `routes/devis.js` now sources app settings via `settingsModel` (instead of the removed `db.getAppSettings`).
 
 ### Fixed
+- **Per-platform tourist tax (owner-collect) was invisible on the reservation panel and the wrong
+  amount was scheduled in the balance:** two distinct bugs in the same flow. (1) `PricingSummary`
+  derived "tax offered by platform" from the legacy hardcoded `platform !== 'direct'` instead of
+  reading `quote.touristTaxOfferedByPlatform`, so flipping `collectsTouristTax` to 0 on a non-direct
+  source had no visible effect — the line kept the strike-through and the "Offert" chip. Compounded
+  by `totalSejour = isIcalSource ? raw - tax : raw`, which silently stripped the tax from the total
+  for any iCal-imported reservation regardless of the resolved flag. (2) The pricing engine baked
+  the owner-collected tax into the balance even though Adrien actually collects it on check-in. Fix:
+  - `PricingSummary` now reads `quote.touristTaxOfferedByPlatform` (with a benign legacy fallback
+    while the first quote is in flight) and trusts `quote.totalStayPrice` as authoritative.
+  - The engine now flags `touristTaxCollectedOnArrival = true` when the platform is non-direct AND
+    `collectsTouristTax = 0`, derives `acompte` + `solde` from `finalPrice` (stay excl. tax), and
+    routes the tax into `complementAmount` from save 1 (not gated on deposit/balance being paid).
+    `totalStayPrice` still equals `finalPrice + tax`. Direct + platform-collect cases are unchanged.
+  - `PricingSummary` renders an "À collecter à l'arrivée (incluse dans le complément)" caption
+    when the new flag is set.
+  Tests: `pricing-tourist-tax-on-arrival-schedule` (5 cases — non-direct owner-collect, direct
+  unchanged, platform-collect unchanged, depositPaid mid-state recomputes balance against
+  `finalPrice`, complementPaid frozen). Engine-consumer suites (pricing / devis / accounting /
+  reservations) green at 98 / 98. Spec `per-platform-tourist-tax-collection.md` updated (functional
+  rules 5 + 7, architecture, test plan, UI/UX). No retroactive recompute on past reservations.
 - **Per-platform tourist tax toggle didn't update the property's iCal sources table:** the SELECT in
   `propertiesModel.getByIdWithDetails` (powering `GET /api/properties/:id`) was missing
   `collectsTouristTax`, so the nested `icalSources` array always returned the field as `undefined`.
