@@ -331,6 +331,19 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - `routes/devis.js` now sources app settings via `settingsModel` (instead of the removed `db.getAppSettings`).
 
 ### Fixed
+- **Per-platform tourist tax (owner-collect) leaked into the accountant journal:** with the new
+  "tax in complement" schedule, the accounting export still pro-rated deposit + balance against
+  `totalStayTtc` and pro-rated the complement (= pure tax) as if it were stay revenue. Result on
+  owner-collect non-direct entries: deposit + balance under-counted HT/VAT (the difference dumped
+  into the residue / last VAT line), and the complement emitted bogus accommodation HT/VAT lines
+  for an amount that is *not* revenue (it's tax owed to the commune). Fix in
+  `accountingModel.buildEntry`: when the engine flags `touristTaxCollectedOnArrival = true`,
+  pro-rate deposit + balance against `finalPrice` (no tax inside those amounts), and carve the
+  tax portion out of the complement entry — dropping the entry entirely if it boils down to pure
+  tax (the tourist tax is reported via Suivi taxe de séjour, never via the accountant journal).
+  Direct + platform-collect cases unchanged. Regression tests:
+  `accounting-model-tourist-tax.unit.test.js` (7 cases). Specs
+  `per-platform-tourist-tax-collection.md` + `accountant-accounting-export.md` updated.
 - **Per-platform tourist tax (owner-collect) was invisible on the reservation panel and the wrong
   amount was scheduled in the balance:** two distinct bugs in the same flow. (1) `PricingSummary`
   derived "tax offered by platform" from the legacy hardcoded `platform !== 'direct'` instead of

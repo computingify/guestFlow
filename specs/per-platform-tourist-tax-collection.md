@@ -98,6 +98,7 @@ visible inconsistency between the reservation summary, the export, and the Suivi
 | `models/propertiesModel.js` | `propertiesModel.js` | T | `getByIdWithDetails` SELECT for `icalSources` must include `collectsTouristTax` (otherwise the iCal sources table on `/properties/:id` shows the old "Plateforme" chip regardless of the saved value). Bugfix 2026-05-30. |
 | `utils/pricing.js` | `pricing.js` | T | New `isPlatformCollectingTouristTax(db, propertyId, platformKey)` helper. The hardcoded `platform !== 'direct'` check is replaced by this lookup. The helper is defensive (`try/catch` on the SELECT to handle minimal test DBs). **2026-05-30:** when the resolved state is "non-direct + owner collects + tax > 0", the engine sets `touristTaxCollectedOnArrival = true`, uses `finalPrice` (not `totalStayPrice`) as the pre-arrival amount for `depositAmount` + `balanceAmount`, and routes the tax into `complementAmount` from save 1. Direct + platform-collect cases are unchanged. |
 | `models/financeModel.js` | `financeModel.js` | T | `getTouristTaxExtraction` SQL `WHERE` now reads `r.platform = 'direct' OR EXISTS (SELECT 1 FROM ical_sources s WHERE s.propertyId = r.propertyId AND lower(s.platformKey) = lower(r.platform) AND s.collectsTouristTax = 0)`. |
+| `models/accountingModel.js` | `accountingModel.js` | T | **2026-05-30:** `buildEntry` branches on `quote.touristTaxCollectedOnArrival`. When true: pro-rate deposit + balance against `finalPrice` (not `totalStayTtc`), and carve the tourist-tax portion out of the complement (`encaissementTtc -= touristTaxTotal`); if the residual is `0`, return `null` so the export drops the entry entirely. Direct + platform-collect cases unchanged. Matches the spec rule "tourist tax is excluded from the revenue accounts — it's reported via Suivi taxe de séjour". |
 | `controllers/propertyIcalController.js` | — | — | No change — controller passes `req.body` through; the model handles the new field. |
 | `tests/` | `pricing-tourist-tax-platform-collection.unit.test.js` | C | Direct / collects=true / collects=false / no matching source / case-insensitive / missing table — 6 cases. |
 | `tests/` | `pricing-tourist-tax-on-arrival-schedule.unit.test.js` | C | 5 cases covering the new schedule logic (2026-05-30): non-direct owner-collect → tax in complement + acompte/solde on finalPrice; direct unchanged; platform-collect unchanged; depositPaid mid-state → balance recomputes against finalPrice; complementPaid → frozen. |
@@ -179,6 +180,12 @@ owner explicitly flips one to `0`.
       tax into the complement and bases acompte/solde on `finalPrice`; direct + platform-collect
       unchanged; depositPaid mid-state recomputes balance against `finalPrice`; complementPaid
       freezes the stored value (2026-05-30).
+- [x] `accounting-model-tourist-tax.unit.test.js` (7) — `buildEntry` regression: direct booking
+      pro-rates against `totalStayTtc` (legacy); platform-collect pro-rates against `finalPrice`
+      (no tax); owner-collect non-direct pro-rates deposit + balance against `finalPrice` (NOT
+      `totalStayTtc`); complement = pure tax → entry dropped; complement = tax + extras → emit
+      only the extras portion; direct legacy options-late complement unchanged; without extras,
+      Σ emitted encaissements equals `finalPrice` (2026-05-30).
 
 ### Manual UI verification
 - [x] Property form — adding a new iCal source with the toggle ON, then OFF, then editing it back.
