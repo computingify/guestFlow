@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
   Box, Card, CardContent, Typography, MenuItem, TextField, Table, TableHead, TableRow,
   TableCell, TableBody, Stack, Alert, Chip, CircularProgress, Link,
@@ -61,8 +61,20 @@ export default function AccountingPage() {
     return { month: d.getMonth() + 1, year: d.getFullYear() };
   }, []);
 
-  const [month, setMonth] = useState(defaultDate.month);
-  const [year, setYear] = useState(defaultDate.year);
+  // Month + year are persisted in the URL (`?month=&year=`) so the back-button restores the user's
+  // selection after they open a reservation file and return. Each picker change replaces the current
+  // history entry (no spurious back-stack noise); navigating to a reservation pushes a new one.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const month = (() => {
+    const m = Number(searchParams.get('month'));
+    return Number.isInteger(m) && m >= 1 && m <= 12 ? m : defaultDate.month;
+  })();
+  const year = (() => {
+    const y = Number(searchParams.get('year'));
+    return Number.isInteger(y) && y >= 2000 && y <= 9999 ? y : defaultDate.year;
+  })();
+  const setMonth = (m) => setSearchParams({ month: String(m), year: String(year) }, { replace: true });
+  const setYear = (y) => setSearchParams({ month: String(month), year: String(y) }, { replace: true });
   const [preview, setPreview] = useState(null);
   const [sales, setSales] = useState(null);
   const [loading, setLoading] = useState(false);
