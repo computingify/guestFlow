@@ -140,14 +140,10 @@ standard).
     reservation file pushes a normal entry, so the browser back-button restores the previously
     selected month + year. URLs are bookmarkable and shareable; bounds are validated client-side
     (month 1–12, year 2000–9999, otherwise fall back to the previous-month default).
-27. **Reading-key panel + per-card context** — the journal section is **self-explanatory** without
-    accounting expertise. Above the entry cards, a static info Alert ("Comment lire ces écritures")
-    explains the model in plain French: one card = one encaissement; the client account debit = the
-    TTC paid; the credits = the same amount split between revenue accounts (HT) and VAT accounts (per
-    rate), **pro-rated** to the payment; Σ debits = Σ credits. Each card header then carries a
-    sub-caption directly under the encaissement amount: `XX % du séjour (YYY,YY €)` — making the
-    pro-rata and the total stay TTC visible at a glance (e.g. `30 % du séjour (364,80 €)` for an
-    acompte on a 364,80 € stay).
+27. **Per-card pro-rata context** — under the encaissement amount in each card header, a small
+    caption `XX % du séjour (YYY,YY €)` makes the pro-rata and the total stay TTC visible at a glance
+    (e.g. `30 % du séjour (360,00 €)` for an acompte on a 360 € stay). Together with the per-line
+    account labels (rule 24) this is enough on-screen context — no separate explanatory panel.
 
 **Edge cases:**
 - Encaissement marked paid but no real date yet (legacy rows) → backfilled to the **due date** on
@@ -389,11 +385,11 @@ requires surfacing, never silent re-pricing. Stored `finalPrice` (TTC) is untouc
     synced; picker changes `replace:true` the entry so the back-button from a reservation file
     returns to the exact same month + year (verified round-trip: select Mai → click client →
     browser back → still on Mai).
-  - **Reading-key panel + per-card pro-rata context**: a static "Comment lire ces écritures" info
-    Alert above the cards explains the partie-double model in plain French (debit = TTC paid,
-    credits = pro-rated HT + VAT). Each card header now shows `XX % du séjour (YYY,YY €)` directly
+  - **Per-card pro-rata context**: each card header shows `XX % du séjour (YYY,YY €)` directly
     under the encaissement amount so the relationship to the full stay total is immediate
-    (e.g. `30 % du séjour (360,00 €)`, `71 % du séjour (360,00 €)`).
+    (e.g. `30 % du séjour (360,00 €)`, `71 % du séjour (360,00 €)`). The earlier "Comment lire ces
+    écritures" info Alert was dropped on Adrien's request — the per-card caption + the account labels
+    (rule 24) carry enough context on their own.
 
   Tests: `csv` (6), `accounting-export` (19), `enforce-role-access` (8), `users-model-admin` (7).
   Full server suite green (433).

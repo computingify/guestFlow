@@ -10,7 +10,6 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import PersonIcon from '@mui/icons-material/Person';
 import EuroIcon from '@mui/icons-material/Euro';
 import StorefrontIcon from '@mui/icons-material/Storefront';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import api from '../api';
 import PageActionBar from '../components/PageActionBar';
 import { useAuth } from '../hooks/useAuth';
@@ -219,36 +218,15 @@ export default function AccountingPage() {
             )}
 
             {!salesLoading && sales && sales.entries.length > 0 && (
-              <>
-                <Alert
-                  severity="info"
-                  variant="outlined"
-                  icon={<InfoOutlinedIcon />}
-                  sx={{ mb: 2, '& .MuiAlert-message': { width: '100%' } }}
-                >
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
-                    Comment lire ces écritures
-                  </Typography>
-                  <Typography variant="body2" component="div" sx={{ color: 'text.secondary' }}>
-                    <strong>Une carte = un encaissement</strong> (acompte ou solde) qui a touché le compte ce mois-ci.
-                    <Box component="ul" sx={{ pl: 2.5, my: 0.5 }}>
-                      <li><strong>Débit du compte client</strong> ({<span style={{ fontFamily: 'monospace' }}>CXXXXXX</span>}) = le montant TTC encaissé.</li>
-                      <li><strong>Crédits</strong> = ce même montant ventilé : HT par compte produit (<span style={{ fontFamily: 'monospace' }}>70xxx</span>), TVA par taux (<span style={{ fontFamily: 'monospace' }}>44571xxx</span>).</li>
-                      <li>La ventilation est <strong>au prorata du paiement</strong> : un acompte de 30 % du séjour crée 30 % des HT et 30 % des TVA. Σ Débits = Σ Crédits ⇒ partie double équilibrée.</li>
-                    </Box>
-                    Sur chaque carte, le sous-titre affiche le pourcentage du séjour encaissé + le total TTC du séjour, pour que la relation soit lisible d'un coup d'œil.
-                  </Typography>
-                </Alert>
-                <Stack spacing={2}>
-                  {sales.entries.map((entry) => (
-                    <JournalEntryCard
-                      key={`${entry.reservationId}-${entry.kind}`}
-                      entry={entry}
-                      canOpenReservation={canOpenReservation}
-                    />
-                  ))}
-                </Stack>
-              </>
+              <Stack spacing={2}>
+                {sales.entries.map((entry) => (
+                  <JournalEntryCard
+                    key={`${entry.reservationId}-${entry.kind}`}
+                    entry={entry}
+                    canOpenReservation={canOpenReservation}
+                  />
+                ))}
+              </Stack>
             )}
           </CardContent>
         </Card>
