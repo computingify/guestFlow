@@ -5,6 +5,20 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- **Dynamic favicon from the company logo.** When the admin has uploaded a logo via Settings →
+  *Informations sur votre activité*, the server now serves it as the site favicon on
+  `/favicon.ico` AND `/favicon.svg` (both URLs the bundled `index.html` references). When no
+  logo is configured, both URLs fall through to the bundled defaults (no change in behaviour for
+  fresh installs). Implemented as a small middleware (`server/src/middleware/dynamicFavicon.js`)
+  mounted BEFORE `express.static(clientBuildDir)` so it wins the route race. Supports every
+  logo format Multer already accepts (PNG, JPG, JPEG, WEBP, GIF) plus SVG and ICO, with the
+  right `Content-Type` per extension and a 5-minute `Cache-Control` so a fresh logo upload
+  propagates to every browser tab without us hitting disk on every favicon request. Path safety
+  pinned by 5 dedicated test cases: a tampered DB row pointing at `/etc/passwd` or `../foo` is
+  reduced to its basename and the resolved path is enforced to stay inside the uploads
+  directory — escape is impossible by construction. Transient `settingsModel.read()` failures
+  (e.g. SQLITE_BUSY during a hot migration) are swallowed and the handler falls through, so the
+  favicon endpoint never turns into a 500. 10 unit tests in `dynamic-favicon.unit.test.js`.
 - **Self-service profile editor on `/account`** (spec `admin-account-management.md` follow-up #6).
   A new "Mes informations" card sits **above** "Mon mot de passe" and lets every authenticated
   user (admin or accountant) edit their own `firstName`, `lastName`, `companyName` and `notes`.
