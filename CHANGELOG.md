@@ -5,6 +5,38 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
+- **Accountant access + monthly accounting CSV export** (spec
+  `accountant-accounting-export.md`, PR 3 — closes the feature):
+  - New **`accountant`** user role and a dedicated **`/comptabilite`** page (nested under "Suivi
+    financier" in the admin sidebar). The accountant logs in, picks a month + year, downloads the
+    sales CSV, and changes their own password — and can do **nothing else** (read-only by construction).
+  - **Sales CSV** (`GET /api/accounting/sales.csv?month=&year=`) — one row per double-entry journal
+    line, balanced: client auxiliary account `C<NAME>` debited TTC, revenue accounts (`70600000` /
+    `70600010` / `70601000`) credited HT pro-rated per encaissement, VAT accounts (`44571100` /
+    `44571200`) credited per rate. One entry **per encaissement** (deposit or balance) whose
+    `depositPaidDate` / `balancePaidDate` falls in the month, so a reservation paid across two months
+    appears in both. Caution and tourist tax are excluded; `kind='devis'` rows never exported.
+    Trailing info columns (`Plateforme`, `Prix payé client`, `Commission`) carry the platform data on
+    the debit row only. **Format:** `;` separator, UTF-8 BOM, comma decimals, FR-Excel friendly.
+  - **Platform commissions preview** (`GET /api/accounting/platforms?month=&year=`) — JSON used by
+    the page table.
+  - **Turnover basis = net** (the owner-received `finalPrice`) — chosen as the simple default; the
+    brut + commission appear only in info columns. One-line switch in
+    `constants/accounting.js::RECOGNISE_REVENUE_ON` when the accountant's example CSV arrives.
+  - **Role enforcement** — new `middleware/enforceRoleAccess.js` (fail-closed): accountants reach
+    only `GET /api/accounting/*` + self routes (`me`, `logout`, `change-password`, `version`); every
+    other endpoint returns **`403 FORBIDDEN_ROLE`**. Admin keeps full access.
+  - **Admin can create / reset the accountant** from **Paramètres → Accès comptable** (new
+    `SettingsAccountantAccessSection`). The accountant must change the temporary password on first
+    login (reuses `mustChangePassword`).
+  - **Client account format:** `C` + first 6 chars of the last name, uppercased, accent-stripped,
+    padded with `X` if shorter — a common French convention. Trivially tunable in `accounting.js`.
+  - New files: `constants/accounting.js`, `middleware/enforceRoleAccess.js`, `models/accountingModel.js`,
+    `models/usersModel.js` (extended), `controllers/{accountingController, usersController}.js`,
+    `routes/{accounting, users}.js`, `utils/{csv, accountingExport}.js`,
+    `pages/AccountingPage.js`, `components/SettingsAccountantAccessSection.js`.
+  - Unit tests: `csv` (6), `accounting-export` (12), `enforce-role-access` (8), `users-model-admin` (7) —
+    full server suite green (426).
 - **Reservation payment dates + platform gross / commission** (spec
   `accountant-accounting-export.md`, PR 2): each reservation now records the **real encaissement date**
   for the deposit and the balance (`depositPaidDate`, `balancePaidDate`) — defaulted to today when the

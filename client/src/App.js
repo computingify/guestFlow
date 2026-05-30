@@ -54,6 +54,7 @@ import ResourcePlanningPage from './pages/ResourcePlanningPage';
 import SettingsPage from './pages/SettingsPage';
 import EstablishmentClosuresPage from './pages/EstablishmentClosuresPage';
 import DevisPage from './pages/DevisPage';
+import AccountingPage from './pages/AccountingPage';
 
 const DRAWER_WIDTH = 240;
 
@@ -68,7 +69,27 @@ const navItems = [
 
 function NavContent({ onItemClick }) {
   const location = useLocation();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
+  // Accountants get a minimal sidebar — read-only, accounting-only.
+  if (user && user.role === 'accountant') {
+    return (
+      <List sx={{ pt: 2 }}>
+        <ListItemButton
+          component={Link}
+          to="/comptabilite"
+          onClick={onItemClick}
+          selected={location.pathname === '/comptabilite'}
+        >
+          <ListItemIcon><DescriptionIcon /></ListItemIcon>
+          <ListItemText primary="Comptabilité" />
+        </ListItemButton>
+        <ListItemButton onClick={() => { logout(); onItemClick && onItemClick(); }}>
+          <ListItemIcon><LogoutIcon /></ListItemIcon>
+          <ListItemText primary="Se déconnecter" />
+        </ListItemButton>
+      </List>
+    );
+  }
   const [properties, setProperties] = useState([]);
   const [calendarMenuOpen, setCalendarMenuOpen] = useState(false);
   const [financeMenuOpen, setFinanceMenuOpen] = useState(false);
@@ -109,7 +130,7 @@ function NavContent({ onItemClick }) {
       setSettingsMenuOpen(false);
       setSettingsPropertiesMenuOpen(false);
     }
-    if (location.pathname.startsWith('/finance')) {
+    if (location.pathname.startsWith('/finance') || location.pathname === '/comptabilite') {
       setFinanceMenuOpen(true);
       setCalendarMenuOpen(false);
       setSettingsMenuOpen(false);
@@ -143,7 +164,7 @@ function NavContent({ onItemClick }) {
                 setFinanceMenuOpen(false);
                 setSettingsMenuOpen(false);
               } else if (item.path === '/finance') {
-                setFinanceMenuOpen(location.pathname.startsWith('/finance') ? true : (prev) => !prev);
+                setFinanceMenuOpen((location.pathname.startsWith('/finance') || location.pathname === '/comptabilite') ? true : (prev) => !prev);
                 setCalendarMenuOpen(false);
                 setSettingsMenuOpen(false);
               } else if (item.path === '/settings') {
@@ -173,7 +194,7 @@ function NavContent({ onItemClick }) {
               item.path === '/properties'
                 ? location.pathname.startsWith('/properties')
                 : item.path === '/finance'
-                  ? location.pathname.startsWith('/finance')
+                  ? (location.pathname.startsWith('/finance') || location.pathname === '/comptabilite')
                   : item.path === '/settings'
                     ? (
                       location.pathname === '/settings'
@@ -288,6 +309,15 @@ function NavContent({ onItemClick }) {
                   sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
                 >
                   <ListItemText primary="Taxe de séjour" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
+                </ListItemButton>
+                <ListItemButton
+                  component={Link}
+                  to="/comptabilite"
+                  onClick={(e) => onItemClick && onItemClick(e, '/comptabilite')}
+                  selected={location.pathname === '/comptabilite'}
+                  sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                >
+                  <ListItemText primary="Comptabilité" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
                 </ListItemButton>
               </List>
             </Collapse>
@@ -420,9 +450,18 @@ function NavContent({ onItemClick }) {
 function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [versionInfo, setVersionInfo] = useState(null);
+
+  // Accountants are confined to /comptabilite (the server already 403s every other endpoint, but
+  // we redirect at the client so they don't see empty shells).
+  useEffect(() => {
+    if (user && user.role === 'accountant' && location.pathname !== '/comptabilite') {
+      navigate('/comptabilite', { replace: true });
+    }
+  }, [user, location.pathname, navigate]);
 
   useEffect(() => {
     let isMounted = true;
@@ -562,6 +601,7 @@ function AppShell() {
           <Route path="/school-holidays" element={<SchoolHolidaysPage />} />
           <Route path="/establishment-closures" element={<EstablishmentClosuresPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/comptabilite" element={<AccountingPage />} />
         </Routes>
       </Box>
     </Box>

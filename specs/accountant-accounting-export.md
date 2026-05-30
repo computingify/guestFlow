@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved — implementing (PR 1 ✅, PR 2 ✅, PR 3 pending §9) |
-| **Branch** | `feature/vat-two-rate-global` (PR 1), `feature/payment-dates-platform-gross` (PR 2), then `feature/accountant-accounting-export` (PR 3) _(user-managed)_ |
+| **Status** | Implemented (PR 1 ✅, PR 2 ✅, PR 3 ✅ — example CSV expected from accountant; format tweaks tracked as a follow-up) |
+| **Branch** | `feature/vat-two-rate-global` (PR 1), `feature/payment-dates-platform-gross` (PR 2), `feature/accountant-accounting-export` (PR 3) _(user-managed)_ |
 | **Created** | 2026-05-29 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
@@ -262,13 +262,17 @@ requires surfacing, never silent re-pricing. Stored `finalPrice` (TTC) is untouc
 
 (Resolved before Status → Approved.)
 - Q: **Accountant's example CSV** — exact columns/order, separator, encoding, and **client-account format**
-  (`C` + how many chars of which name, casing).  → A: _pending Adrien's example (offered in the email)._
+  (`C` + how many chars of which name, casing).  → A: **shipped with sensible defaults** (Adrien, 2026-05-30) —
+  columns `Jour;Mois;Année;Compte;Libellé;Débit;Crédit;Plateforme;Prix payé client;Commission`, `;`
+  separator, UTF-8 BOM, comma decimals; client account = `C` + 6 chars of last name (uppercased,
+  accent-stripped, `X`-padded). Trivially tunable in `constants/accounting.js` once the example arrives.
 - Q: **Platform turnover basis** — for a platform sale, are the revenue accounts (70xxx) + VAT recognised on
   the **gross** (guest-paid) with commission booked as a **charge** line, or on the **net** the owner
-  receives, with gross/commission shown only as info columns?  → A: _pending (accounting decision; likely
-  gross = turnover, commission = charge — confirm with the accountant)._
+  receives, with gross/commission shown only as info columns?  → A: **net** by default (Adrien, 2026-05-30) —
+  simple, every sale has the same shape. To switch to gross + commission-as-charge, change
+  `RECOGNISE_REVENUE_ON` in `constants/accounting.js` and add an extra credit line in `accountingExport.js`.
 - Q: **Create-accountant mechanism** — admin "Accès comptable" section in Settings (nicer for a solo owner)
-  vs a `npm run create-accountant` CLI?  → A: _proposed: Settings section; confirm._
+  vs a `npm run create-accountant` CLI?  → A: **Settings section** (shipped).
 - Q: **Retire per-property VAT columns** — keep them dormant (read nothing) or drop after backfill?
   → A: **drop** (Adrien, 2026-05-29). Migration backfills first, then `DROP COLUMN`. Done.
 - Q: **Empty month** — header-only CSV vs a friendly "aucune écriture" response? → A: _proposed: header-only._
@@ -294,5 +298,18 @@ requires surfacing, never silent re-pricing. Stored `finalPrice` (TTC) is untouc
   platform-only "Prix payé par le client" + computed "Commission plateforme" caption (hidden on direct).
   Tests: `client-gross-amount` (7), `reservations-commission` (7). Verified live in the browser
   (visibility toggling on platform change, commission auto-computed, paid-date defaults to today).
-- **PR 3 — Accountant role + read-only Comptabilité page + monthly CSV export ⬜.** Blocked on §9
-  (example CSV format + platform turnover basis).
+- **PR 3 — Accountant role + read-only Comptabilité page + monthly CSV export ✅
+  (`feature/accountant-accounting-export`).** New `accountant` role; fail-closed
+  `middleware/enforceRoleAccess.js` confines it to `GET /api/accounting/*` + self routes
+  (everything else → `403 FORBIDDEN_ROLE`). Admin can create/reset the accountant from
+  **Paramètres → Accès comptable** (new `SettingsAccountantAccessSection`). New `/comptabilite`
+  page (nested in the admin sidebar under "Suivi financier") with month/year picker,
+  "Télécharger le CSV" action, and the platform-commissions preview table. Sales CSV is balanced
+  double-entry (`C<NAME>` debit + 70xxx + 44571x00 credits, pro-rated per encaissement). Turnover
+  basis = **net** (see §9, decision pending the accountant's example). One CSV regardless of source;
+  platform info on the debit row only. New files: `constants/accounting.js`,
+  `middleware/enforceRoleAccess.js`, `models/accountingModel.js`,
+  `controllers/{accountingController, usersController}.js`, `routes/{accounting, users}.js`,
+  `utils/{csv, accountingExport}.js`, `pages/AccountingPage.js`,
+  `components/SettingsAccountantAccessSection.js`. Tests: `csv` (6), `accounting-export` (12),
+  `enforce-role-access` (8), `users-model-admin` (7). Full server suite green (426).

@@ -8,6 +8,7 @@ import SettingsCompanySection from '../components/SettingsCompanySection';
 import SettingsQuoteSection from '../components/SettingsQuoteSection';
 import SettingsVatSection from '../components/SettingsVatSection';
 import SettingsGoogleCalendarSection from '../components/SettingsGoogleCalendarSection';
+import SettingsAccountantAccessSection from '../components/SettingsAccountantAccessSection';
 import ChangePasswordForm from '../components/ChangePasswordForm';
 import useDirtyFormGuard from '../hooks/useDirtyFormGuard';
 import { useAuth } from '../hooks/useAuth';
@@ -282,6 +283,8 @@ export default function SettingsPage() {
           testResult={testResult}
           disabled={loading || saving}
         />
+
+        <SettingsAccountantAccessSection />
 
         <Card variant="outlined" sx={{ mt: 2 }}>
           <CardContent>
