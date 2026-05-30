@@ -22,6 +22,7 @@ const {
   BUCKET_TO_ACCOUNT,
   vatAccountForRate,
   buildClientAccount,
+  accountLabel,
 } = require('../constants/accounting');
 
 const CSV_HEADERS = [
@@ -141,6 +142,7 @@ function entryToStructured(entry) {
 
   const lines = rows.map(([d, m, y, compte, libelle, debit, credit]) => ({
     compte: String(compte),
+    accountLabel: accountLabel(compte),
     libelle: String(libelle),
     debit: typeof debit === 'number' ? debit : null,
     credit: typeof credit === 'number' ? credit : null,

@@ -339,7 +339,7 @@ function JournalEntryCard({ entry }) {
         <TableHead>
           <TableRow sx={{ bgcolor: 'grey.50' }}>
             <TableCell sx={{ width: 80 }}>Type</TableCell>
-            <TableCell sx={{ width: 110 }}>Compte</TableCell>
+            <TableCell sx={{ width: 170 }}>Compte</TableCell>
             <TableCell>Libellé</TableCell>
             <TableCell align="right" sx={{ width: 110 }}>Débit</TableCell>
             <TableCell align="right" sx={{ width: 110 }}>Crédit</TableCell>
@@ -353,7 +353,14 @@ function JournalEntryCard({ entry }) {
                 <TableCell>
                   <Chip size="small" color={s.color} variant="filled" label={s.label} sx={{ height: 22 }} />
                 </TableCell>
-                <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.85rem', fontWeight: 600 }}>{line.compte}</TableCell>
+                <TableCell sx={{ fontSize: '0.85rem' }}>
+                  <Box sx={{ fontFamily: 'monospace', fontWeight: 600 }}>{line.compte}</Box>
+                  {line.accountLabel && (
+                    <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', lineHeight: 1.2 }}>
+                      {line.accountLabel}
+                    </Typography>
+                  )}
+                </TableCell>
                 <TableCell sx={{ color: 'text.secondary' }}>{line.libelle}</TableCell>
                 <TableCell align="right" sx={{ fontFamily: 'monospace', fontWeight: line.debit != null ? 700 : 400 }}>
                   {line.debit != null ? formatEur(line.debit) : '—'}

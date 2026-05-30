@@ -21,6 +21,22 @@ const VAT_ACCOUNTS = {
   REDUCED_10:  '44571100', // TVA 10%
 };
 
+// Human label per account number — drives the "intitulé" column in the visual journal preview on the
+// Comptabilité page (not in the CSV itself, which keeps to the accountant's column list).
+const ACCOUNT_LABELS = {
+  [REVENUE_ACCOUNTS.ACCOMMODATION]: 'Location gîte',
+  [REVENUE_ACCOUNTS.COMPLEMENTARY]: 'Prestation complémentaire',
+  [REVENUE_ACCOUNTS.ACTIVITIES]:    'Activité diverse',
+  [VAT_ACCOUNTS.REDUCED_10]:  'TVA 10 %',
+  [VAT_ACCOUNTS.STANDARD_20]: 'TVA 20 %',
+};
+
+function accountLabel(account) {
+  if (ACCOUNT_LABELS[account]) return ACCOUNT_LABELS[account];
+  if (String(account || '').startsWith('C')) return 'Compte client';
+  return '';
+}
+
 // Which revenue account each GuestFlow bucket lands in. See spec §3.4 rule 12.
 const BUCKET_TO_ACCOUNT = {
   accommodation: REVENUE_ACCOUNTS.ACCOMMODATION,
@@ -60,8 +76,10 @@ const ROLES = Object.freeze({
 module.exports = {
   REVENUE_ACCOUNTS,
   VAT_ACCOUNTS,
+  ACCOUNT_LABELS,
   BUCKET_TO_ACCOUNT,
   vatAccountForRate,
+  accountLabel,
   CLIENT_ACCOUNT_NAME_CHARS,
   buildClientAccount,
   RECOGNISE_REVENUE_ON,

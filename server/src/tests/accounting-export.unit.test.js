@@ -5,7 +5,7 @@ const {
   entryToRows, buildRows, entryToStructured, buildStructuredEntries, CSV_HEADERS,
   __test: { classifyLine },
 } = require('../utils/accountingExport');
-const { buildClientAccount } = require('../constants/accounting');
+const { buildClientAccount, accountLabel } = require('../constants/accounting');
 
 // Pure engine: encaissement entries → balanced double-entry journal rows.
 
@@ -213,4 +213,31 @@ test('buildStructuredEntries: mirrors buildRows entry-for-entry', () => {
   assert.equal(structured.length, 2);
   assert.equal(structured[0].reservationId, 42);
   assert.equal(structured[1].reservationId, 99);
+});
+
+test('accountLabel: maps each account number to its human label', () => {
+  assert.equal(accountLabel('70600000'), 'Location gîte');
+  assert.equal(accountLabel('70600010'), 'Prestation complémentaire');
+  assert.equal(accountLabel('70601000'), 'Activité diverse');
+  assert.equal(accountLabel('44571100'), 'TVA 10 %');
+  assert.equal(accountLabel('44571200'), 'TVA 20 %');
+  // Any client auxiliary (C…) is labelled "Compte client".
+  assert.equal(accountLabel('CDUPONT'), 'Compte client');
+  assert.equal(accountLabel('CXXXXXX'), 'Compte client');
+  // Unknown / empty → '' (UI then just shows the number alone).
+  assert.equal(accountLabel('99'), '');
+  assert.equal(accountLabel(''), '');
+  assert.equal(accountLabel(null), '');
+});
+
+test('entryToStructured: each line carries accountLabel alongside the account number', () => {
+  const out = entryToStructured(makeEntry()); // direct, both buckets
+  for (const line of out.lines) {
+    assert.equal(typeof line.accountLabel, 'string');
+  }
+  // The client debit line is labelled "Compte client"; revenue + VAT use their accounting names.
+  assert.equal(out.lines[0].accountLabel, 'Compte client');
+  const labelsByAccount = Object.fromEntries(out.lines.map((l) => [l.compte, l.accountLabel]));
+  assert.equal(labelsByAccount['70600000'], 'Location gîte');
+  assert.equal(labelsByAccount['44571100'], 'TVA 10 %');
 });
