@@ -135,6 +135,11 @@ standard).
     name navigates to `/reservations/{reservationId}`. The link is **only rendered for the admin
     role**; the accountant sees the name as plain text (they cannot reach reservations anyway —
     `/api/reservations/*` returns `403 FORBIDDEN_ROLE` for them).
+26. **Month / year persisted in the URL** — `/comptabilite?month=MM&year=YYYY`. Picker changes
+    `replace:true` the current history entry (no spurious back-stack noise); navigating to a
+    reservation file pushes a normal entry, so the browser back-button restores the previously
+    selected month + year. URLs are bookmarkable and shareable; bounds are validated client-side
+    (month 1–12, year 2000–9999, otherwise fall back to the previous-month default).
 
 **Edge cases:**
 - Encaissement marked paid but no real date yet (legacy rows) → backfilled to the **due date** on
@@ -372,6 +377,10 @@ requires surfacing, never silent re-pricing. Stored `finalPrice` (TTC) is untouc
   - **Client name → reservation link (admin only)**: in each journal card, the client name is a
     `<Link to="/reservations/{id}">` for admins, plain text for accountants (who can't reach
     reservations anyway).
+  - **URL-backed picker state** (`useSearchParams`): the page reads `?month=&year=` and stays
+    synced; picker changes `replace:true` the entry so the back-button from a reservation file
+    returns to the exact same month + year (verified round-trip: select Mai → click client →
+    browser back → still on Mai).
 
   Tests: `csv` (6), `accounting-export` (19), `enforce-role-access` (8), `users-model-admin` (7).
   Full server suite green (433).
