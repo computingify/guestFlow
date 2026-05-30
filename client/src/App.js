@@ -13,9 +13,12 @@ import {
   CircularProgress, Card, CardContent
 } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import { AuthProvider, useAuth } from './hooks/useAuth';
+import { ADMIN, ACCOUNTANT, userHasRole } from './constants/roles';
 import LoginPage from './pages/LoginPage';
 import ChangePasswordForm from './components/ChangePasswordForm';
+import AccountsPage from './pages/AccountsPage';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PeopleIcon from '@mui/icons-material/People';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
@@ -66,6 +69,7 @@ const navItems = [
   { label: 'Calendrier', path: '/calendar', icon: <EventIcon /> },
   { label: 'Suivi financier', path: '/finance', icon: <AccountBalanceIcon /> },
   { label: 'Devis', path: '/devis', icon: <DescriptionIcon /> },
+  { label: 'Comptes', path: '/comptes', icon: <AdminPanelSettingsIcon />, adminOnly: true },
   { label: 'Parametres', path: '/settings', icon: <SettingsIcon /> },
 ];
 
@@ -74,7 +78,8 @@ function NavContent({ onItemClick }) {
   const { user, logout } = useAuth();
   // Accountants get a minimal sidebar — read-only, accounting-only. The only Paramètres item they
   // can reach is the change-password page (the role guard 403s every other settings/business route).
-  if (user && user.role === 'accountant') {
+  // Admin trumps accountant for the sidebar — a user with both roles sees the full admin nav.
+  if (user && userHasRole(user, ACCOUNTANT) && !userHasRole(user, ADMIN)) {
     return (
       <List sx={{ pt: 2 }}>
         <ListItemButton
@@ -164,9 +169,11 @@ function NavContent({ onItemClick }) {
     }
   }, [location.pathname]);
 
+  const visibleNavItems = navItems.filter((item) => !item.adminOnly || userHasRole(user, ADMIN));
+
   return (
     <List sx={{ pt: 2 }}>
-      {navItems.map((item) => (
+      {visibleNavItems.map((item) => (
         <Box key={item.path}>
           <ListItemButton
             component={Link}
@@ -481,9 +488,10 @@ function AppShell() {
   const [versionInfo, setVersionInfo] = useState(null);
 
   // Accountants are confined to /comptabilite and /settings/password (the server already 403s every
-  // other endpoint, but we redirect at the client so they don't see empty shells).
+  // other endpoint, but we redirect at the client so they don't see empty shells). Multi-role users
+  // who also hold admin keep the full app.
   useEffect(() => {
-    if (!user || user.role !== 'accountant') return;
+    if (!user || !userHasRole(user, ACCOUNTANT) || userHasRole(user, ADMIN)) return;
     const allowed = location.pathname === '/comptabilite' || location.pathname === '/settings/password';
     if (!allowed) navigate('/comptabilite', { replace: true });
   }, [user, location.pathname, navigate]);
@@ -628,6 +636,7 @@ function AppShell() {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/settings/password" element={<ChangePasswordPage />} />
           <Route path="/comptabilite" element={<AccountingPage />} />
+          <Route path="/comptes" element={<AccountsPage />} />
         </Routes>
       </Box>
     </Box>
