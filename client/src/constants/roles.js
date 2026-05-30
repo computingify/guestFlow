@@ -13,8 +13,13 @@ export const ROLE_LABELS = Object.freeze({
 });
 
 export function userHasRole(user, role) {
-  if (!user || !Array.isArray(user.roles)) return false;
-  return user.roles.includes(role);
+  if (!user) return false;
+  if (Array.isArray(user.roles)) return user.roles.includes(role);
+  // Back-compat shim for in-flight sessions persisted before M2 deployed the multi-role shape.
+  // Mirrors the server-side userHasRole; can be removed once every session has cycled
+  // (re-login or session-cookie expiry).
+  if (typeof user.role === 'string' && user.role) return user.role === role;
+  return false;
 }
 
 export function roleLabel(role) {
