@@ -31,12 +31,25 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
     login (reuses `mustChangePassword`).
   - **Client account format:** `C` + first 6 chars of the last name, uppercased, accent-stripped,
     padded with `X` if shorter — a common French convention. Trivially tunable in `accounting.js`.
+  - **Visual journal preview** above the platforms table — one card per encaissement mirroring
+    exactly what will be in the CSV, with the per-line account number paired with its human label
+    (`Location gîte`, `TVA 10 %`, `Compte client`…), coloured by type (client/amber, revenue/green,
+    VAT/blue), balanced badge per card and `Tout équilibré` chip in the header. Backed by a new
+    `GET /api/accounting/sales` JSON endpoint (strict mirror of the CSV via
+    `buildStructuredEntries`). For **admin only**, the client name is a link to the reservation file
+    (accountant sees plain text).
+  - **Dedicated change-password page** at `/settings/password`, accessible to every authenticated
+    role (admin and accountant). Replaces the previous duplicate "Sécurité" cards on `SettingsPage`
+    and `AccountingPage`. Admin sees a "Mot de passe" sub-item at the bottom of the Paramètres
+    group; accountant has a minimal sidebar (Comptabilité, Mot de passe, Se déconnecter) and is
+    client-side-redirected to `/comptabilite` from anywhere outside the two allowed paths.
   - New files: `constants/accounting.js`, `middleware/enforceRoleAccess.js`, `models/accountingModel.js`,
     `models/usersModel.js` (extended), `controllers/{accountingController, usersController}.js`,
     `routes/{accounting, users}.js`, `utils/{csv, accountingExport}.js`,
-    `pages/AccountingPage.js`, `components/SettingsAccountantAccessSection.js`.
-  - Unit tests: `csv` (6), `accounting-export` (12), `enforce-role-access` (8), `users-model-admin` (7) —
-    full server suite green (426).
+    `pages/AccountingPage.js`, `pages/ChangePasswordPage.js`,
+    `components/SettingsAccountantAccessSection.js`.
+  - Unit tests: `csv` (6), `accounting-export` (19), `enforce-role-access` (8), `users-model-admin` (7) —
+    full server suite green (433).
 - **Reservation payment dates + platform gross / commission** (spec
   `accountant-accounting-export.md`, PR 2): each reservation now records the **real encaissement date**
   for the deposit and the balance (`depositPaidDate`, `balancePaidDate`) — defaulted to today when the

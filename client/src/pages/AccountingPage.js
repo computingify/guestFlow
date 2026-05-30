@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import {
   Box, Card, CardContent, Typography, MenuItem, TextField, Table, TableHead, TableRow,
-  TableCell, TableBody, Stack, Alert, Chip, CircularProgress,
+  TableCell, TableBody, Stack, Alert, Chip, CircularProgress, Link,
 } from '@mui/material';
 import DescriptionIcon from '@mui/icons-material/Description';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -11,6 +12,7 @@ import EuroIcon from '@mui/icons-material/Euro';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import api from '../api';
 import PageActionBar from '../components/PageActionBar';
+import { useAuth } from '../hooks/useAuth';
 
 // Visual classification: client (auxiliary debit) = amber, revenue (70xxx) = green,
 // VAT (44571xxx) = blue. Used to colour rows and the per-line chip in the journal preview.
@@ -48,6 +50,10 @@ function formatDate(iso) {
 }
 
 export default function AccountingPage() {
+  const { user } = useAuth();
+  // Only admins may navigate to a reservation file — the accountant role is read-only-accounting and
+  // the server already 403s `/api/reservations/*` for them. The link is hidden at the UI layer too.
+  const canOpenReservation = user?.role === 'admin';
   const today = new Date();
   // Default to the previous month — accounting work is typically retrospective.
   const defaultDate = useMemo(() => {
@@ -202,7 +208,11 @@ export default function AccountingPage() {
             {!salesLoading && sales && sales.entries.length > 0 && (
               <Stack spacing={2}>
                 {sales.entries.map((entry) => (
-                  <JournalEntryCard key={`${entry.reservationId}-${entry.kind}`} entry={entry} />
+                  <JournalEntryCard
+                    key={`${entry.reservationId}-${entry.kind}`}
+                    entry={entry}
+                    canOpenReservation={canOpenReservation}
+                  />
                 ))}
               </Stack>
             )}
@@ -271,8 +281,20 @@ export default function AccountingPage() {
 
 const KIND_LABELS = { deposit: 'Acompte', balance: 'Solde' };
 
-function JournalEntryCard({ entry }) {
+function JournalEntryCard({ entry, canOpenReservation = false }) {
   const isPlatform = Boolean(entry.platform.platform);
+  const clientNode = canOpenReservation ? (
+    <Link
+      component={RouterLink}
+      to={`/reservations/${entry.reservationId}`}
+      underline="hover"
+      sx={{ fontWeight: 600, fontSize: '0.875rem' }}
+    >
+      {entry.libelle}
+    </Link>
+  ) : (
+    <Typography variant="body2" sx={{ fontWeight: 600 }}>{entry.libelle}</Typography>
+  );
   return (
     <Card variant="outlined" sx={{ borderColor: entry.balanced ? 'divider' : 'error.main' }}>
       <Box
@@ -293,7 +315,7 @@ function JournalEntryCard({ entry }) {
           <Chip size="small" label={KIND_LABELS[entry.kind] || entry.kind} />
           <Stack direction="row" alignItems="center" spacing={0.75}>
             <PersonIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>{entry.libelle}</Typography>
+            {clientNode}
           </Stack>
           {isPlatform && (
             <Chip

@@ -106,12 +106,35 @@ standard).
 ### 3.5 Accountant access (role + page)
 
 17. A new **`accountant`** role exists. An accountant logs in like anyone, can **change their own
-    password**, and is redirected to a **read-only `/comptabilite`** page — their only page.
+    password**, and is redirected to a **read-only `/comptabilite`** page — their main page.
 18. The accountant **cannot reach or mutate** anything else: every non-accounting `/api` route is
     **admin-only**; the accountant may only `GET` the accounting endpoints + the self endpoints
     (`me`, `logout`, `change-password`). Enforced **server-side** (fail-closed), not just hidden in the UI.
 19. The **admin** can **create / reset** the accountant account (email + temporary password with forced
-    first-login change). Mechanism chosen in §9 (admin Settings section vs CLI).
+    first-login change) from **Paramètres → Accès comptable** (chosen in §9).
+20. **Password change is on its own page** — `/settings/password` — and is **accessible to every
+    authenticated user** (admin and accountant). It is the only page besides `/comptabilite` that the
+    accountant can reach (both server-side via the role guard and client-side via the redirect rule).
+21. **Sidebar — admin view:** the Comptabilité link lives under **Suivi financier** (next to Vue
+    générale and Taxe de séjour). "Mot de passe" is the last sub-item under **Paramètres**.
+22. **Sidebar — accountant view:** minimal — Comptabilité, Mot de passe, Se déconnecter (no Suivi
+    financier wrapper, no Paramètres sub-menu, nothing else).
+23. **Visual journal preview on `/comptabilite`** — above the platforms-commissions table, render
+    **one card per encaissement** mirroring exactly what will end up in the CSV: header bar with the
+    date / kind chip (Acompte / Solde) / client / platform chip (non-direct only) / encaissement TTC /
+    balanced badge; optional platform sub-bar showing gross + commission; inline journal table
+    coloured by line type (client = amber, revenue = green, VAT = blue) with monospace account
+    numbers and a Σ row. The card border turns red when not balanced. Strict mirror: the JSON behind
+    the preview comes from `entryToStructured(entry)`, which calls the same `entryToRows` walk as the
+    CSV — any future export change appears in both at once.
+24. **Account labels in the preview** — each account number is paired with its human label
+    (`70600000 / Location gîte`, `70600010 / Prestation complémentaire`, `70601000 / Activité
+    diverse`, `44571100 / TVA 10 %`, `44571200 / TVA 20 %`, `C… / Compte client`) shown as a small
+    caption under the number. The CSV itself is unchanged — labels are a UI-only enrichment.
+25. **Client name → reservation file link (admin only)** — in each journal card, clicking the client
+    name navigates to `/reservations/{reservationId}`. The link is **only rendered for the admin
+    role**; the accountant sees the name as plain text (they cannot reach reservations anyway —
+    `/api/reservations/*` returns `403 FORBIDDEN_ROLE` for them).
 
 **Edge cases:**
 - Encaissement marked paid but no real date yet (legacy rows) → backfilled to the **due date** on
@@ -137,7 +160,7 @@ standard).
 |---|---|---|---|
 | `database.js` | `database.js` | T | Migrations: add `app_settings.vatRateAccommodation/vatRateStandard`; backfill from old per-property rates; add `reservations.depositPaidDate/balancePaidDate/clientGrossAmount`; backfill paid-dates from due-dates; ensure a `users.role` value set; (retire the 3 per-property VAT columns — keep but stop reading, or drop after backfill — §9). |
 | `utils/pricing.js` | `pricing.js` | T | Read the **two global VAT rates** instead of three per-property ones; accommodation→accommodation rate, options/custom/resources→standard rate. Behaviour-preserving except the intended 3→2 change. |
-| `utils/accountingExport.js` | — | C | **Pure** engine: given a month's encaissements (already shaped by the model) → balanced journal lines (account mapping, pro-rata split, rounding residue, client-account formatting). Unit-tested. |
+| `utils/accountingExport.js` | — | C | **Pure** engine: given a month's encaissements (already shaped by the model) → balanced journal lines (`buildRows` for the CSV, `buildStructuredEntries` for the JSON preview — same data, same line order, same rounding). Adds `accountLabel` per line for the visual preview. Unit-tested. |
 | `utils/csv.js` | — | C | Pure CSV serializer (`;`, BOM, comma decimals, escaping). Reusable. |
 | `models/accountingModel.js` | — | C | Reads encaissements for a month: joins reservations (`kind='reservation'`) + clients + per-bucket HT/VAT from the quote, filtered by `depositPaidDate`/`balancePaidDate` in [month]. Returns rows for the export engine. No HTTP. |
 | `models/settingsModel.js` | `settingsModel.js` | T | Add the two VAT columns to `COLUMNS`/`DEFAULTS`. |
@@ -159,12 +182,14 @@ standard).
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `pages/AccountingPage.js` | — | C | Read-only Comptabilité page: month/year picker + "Télécharger le CSV" + platform-commission preview table. Uses `PageActionBar`. |
-| `pages/SettingsPage.js` | `SettingsPage.js` | T | New "TVA" fields (2 global rates); admin "Comptes" section to create/reset the accountant (if UI chosen, §9). |
+| `pages/AccountingPage.js` | — | C | Read-only Comptabilité page: month/year picker + "Télécharger le CSV" + **visual journal cards** (one per encaissement, mirror of the CSV) + platform-commission preview table. Uses `PageActionBar`. |
+| `pages/ChangePasswordPage.js` | — | C | Dedicated change-password page at `/settings/password`. Common to every authenticated role (admin + accountant). Wraps `ChangePasswordForm` in a `PageActionBar` card. |
+| `pages/SettingsPage.js` | `SettingsPage.js` | T | New "TVA" fields (2 global rates); admin **"Accès comptable"** section to create/reset the accountant. The legacy in-page Sécurité card was **removed** — change-password now lives only on `/settings/password`. |
+| `components/SettingsAccountantAccessSection.js` | — | C | Admin-only Settings card: detects the existing accountant, lets you create one (first run) or reset its password. Includes a "Générer un mot de passe" helper. |
 | `components/reservation/FinanceSection.js` | `FinanceSection.js` | T | Add **payment-date** inputs next to each "payé" toggle; add the **"Prix payé par le client"** field shown **only for platform** reservations, with read-only computed commission. |
 | `components/PricingSummary.js` (+ TVA display) | `PricingSummary.js` | T | **Audit & fix** the TVA lines to reflect the 2-rate model (user explicitly asked to check this). |
-| `App.js` / routing + `hooks/useAuth.js` | `App.js`, `useAuth.js` | T | Role-aware routing: `accountant` → only `/comptabilite`; hide admin nav; redirect attempts elsewhere. |
-| `api.js` | `api.js` | T | `downloadAccountingCsv(month,year)`, `getPlatformReport(...)`, settings VAT fields, user-management calls, payment-date in `markPayment`. |
+| `App.js` / routing + `hooks/useAuth.js` | `App.js`, `useAuth.js` | T | Role-aware routing: accountant sees a minimal sidebar (Comptabilité, Mot de passe, Se déconnecter) and is redirected to `/comptabilite` from any path outside `[/comptabilite, /settings/password]`. Admin sidebar nests the Comptabilité link under **Suivi financier** and adds **Mot de passe** under **Paramètres**. |
+| `api.js` | `api.js` | T | `downloadAccountingSalesCsv(month,year)`, `getAccountingSales(...)` (structured JSON for the visual preview), `getAccountingPlatforms(...)`, settings VAT fields, `listUsers` / `createUser` / `resetUserPassword`, payment-date in `markPayment`. |
 
 **Component reuse declaration:**
 
@@ -179,6 +204,7 @@ standard).
 | Method | Endpoint | Request | Response | Notes |
 |---|---|---|---|---|
 | GET | `/api/accounting/sales.csv?month=MM&year=YYYY` | — | `text/csv` attachment | Auth: admin **or** accountant. Balanced journal lines for the month. |
+| GET | `/api/accounting/sales?month=MM&year=YYYY` | — | `{ entries:[…], totals:{ entriesCount, totalDebits, totalCredits, allBalanced } }` | Auth: admin **or** accountant. Structured JSON mirror of the CSV (one entry per encaissement, lines classified `client`/`revenue`/`vat`, each carrying its `accountLabel`). Drives the visual journal preview. |
 | GET | `/api/accounting/platforms?month=MM&year=YYYY` | — | `{ rows:[{client,platform,gross,commission,net,date}], totals }` | Preview/JSON for the page table. |
 | GET/PUT | `/api/settings` | `{ vatRateAccommodation, vatRateStandard, … }` | settings | Admin-only; validate 0–100. |
 | GET/POST/PUT | `/api/users` | `{ email, role, password? }` | safe user(s) | **Admin-only**; create/reset accountant. |
@@ -212,10 +238,18 @@ requires surfacing, never silent re-pricing. Stored `finalPrice` (TTC) is untouc
 ## 6. UI / UX
 
 - **Comptabilité page (`/comptabilite`)** — `PageActionBar title="Comptabilité"`, no Save/Cancel. A
-  `MonthYearPicker` + a primary "Télécharger le CSV" action (in the bar, icon `DescriptionIcon`), and a
-  preview table (platform commissions for the month) below. Empty month → `EmptyState`. Loading/error →
-  `LoadingState`/`ErrorAlert`. **Responsive:** picker + button stack on `xs`; preview table → stacked cards
-  on `xs`, real table on `md+`.
+  month/year picker + a primary "Télécharger le CSV" action (in the bar, icon `DescriptionIcon`).
+  Below: the **"Détail des écritures du mois"** section — one card per encaissement showing exactly
+  the lines that will be in the CSV, coloured by account type (client/amber, revenue/green,
+  VAT/blue), each account paired with its human label (`Location gîte`, `TVA 10 %`, etc.). For
+  **admin only**, the client name in each card is a link to `/reservations/{reservationId}`. Header
+  chips: count, total débits, "Tout équilibré". Below that, the platform-commissions table. Empty
+  month → friendly empty-state captions. Loading → spinner.
+  **Responsive:** picker + button stack on `xs`; cards reflow on `xs` (header chips wrap).
+- **`/settings/password` (`ChangePasswordPage`)** — `PageActionBar title="Changer le mot de passe"`,
+  subtitle chip with the current user's email. A single card with `ChangePasswordForm` + success
+  alert. Reachable by every authenticated user (admin and accountant); for accountants this is the
+  only Paramètres-side page they can open.
 - **Reservation FinanceSection** — under each "payé" toggle, a date input ("Payé le", default today,
   editable) enabled only when paid. A **"Prix payé par le client"** number field appears **only** when the
   reservation is platform-sourced, with a read-only "Commission plateforme : X €" caption beneath. Hidden
@@ -229,17 +263,24 @@ requires surfacing, never silent re-pricing. Stored `finalPrice` (TTC) is untouc
 ## 7. Test plan
 
 ### Server unit tests
-- [ ] `accounting-export.unit.test.js` — per-encaissement balanced lines (Σcredits==debit), pro-rata split
-      across acompte/solde, rounding residue, account mapping per bucket, VAT-account by rate, client-account
-      formatting, caution & taxe de séjour excluded, devis excluded.
-- [ ] `csv.unit.test.js` — separator/BOM/comma/escaping.
-- [ ] `pricing-vat-two-rates.unit.test.js` — accommodation uses accommodation rate, options/custom/resources
-      use standard rate; totals unchanged when rates are 10/20; tourist tax untouched.
-- [ ] `accounting-model.unit.test.js` — month filter on payment dates, platform gross/commission, only
-      `kind='reservation'`.
-- [ ] `require-role.unit.test.js` — accountant blocked on non-accounting routes (403), allowed on accounting
-      + self; admin allowed everywhere.
-- [ ] `users-model.unit.test.js` (extend) — create accountant, forced change, reset.
+- [x] `accounting-export.unit.test.js` (19) — per-encaissement balanced lines (Σ credits == debit),
+      pro-rata split, rounding residue, account mapping per bucket, VAT-account by rate,
+      client-account formatting (incl. accents/hyphens/padding), platform info on debit row only,
+      multi-entry order; **structured-entries mirror buildRows entry-for-entry**; classify by account
+      prefix; **accountLabel mapping** (Location gîte / Prestation complémentaire / Activité diverse
+      / TVA 10 % / TVA 20 % / Compte client).
+- [x] `csv.unit.test.js` (6) — `;` separator, BOM, comma decimals, quoting/escaping, empty input.
+- [x] `pricing-vat-two-rates.unit.test.js` (5) — accommodation uses the accommodation rate,
+      options/custom/resources use the standard rate; TTC totals unchanged.
+- [x] `enforce-role-access.unit.test.js` (8) — admin unrestricted, accountant allowed on
+      `GET /accounting/*` and self routes, blocked on POST/PUT/PATCH/DELETE there and on every
+      non-accounting/non-self path, unknown role + no user 403 (fail-closed).
+- [x] `users-model-admin.unit.test.js` (7) — `createUser` hashes the password, normalises the email
+      (trim + lowercase), enforces `mustChangePassword=1` and `isActive=1`, UNIQUE on duplicate;
+      `list()` returns safe shape (no hash leaked); `resetUserPassword` re-hashes and re-forces.
+- [x] `client-gross-amount.unit.test.js` (7) — gross >= net, negative/NaN rejection.
+- [x] `reservations-commission.unit.test.js` (7) — commission = gross − net, clamped at 0,
+      platform-only.
 
 ### Manual UI verification
 - [ ] Happy path: create accountant → log in → forced password change → see only `/comptabilite` → download
@@ -303,13 +344,34 @@ requires surfacing, never silent re-pricing. Stored `finalPrice` (TTC) is untouc
   `middleware/enforceRoleAccess.js` confines it to `GET /api/accounting/*` + self routes
   (everything else → `403 FORBIDDEN_ROLE`). Admin can create/reset the accountant from
   **Paramètres → Accès comptable** (new `SettingsAccountantAccessSection`). New `/comptabilite`
-  page (nested in the admin sidebar under "Suivi financier") with month/year picker,
-  "Télécharger le CSV" action, and the platform-commissions preview table. Sales CSV is balanced
-  double-entry (`C<NAME>` debit + 70xxx + 44571x00 credits, pro-rated per encaissement). Turnover
-  basis = **net** (see §9, decision pending the accountant's example). One CSV regardless of source;
-  platform info on the debit row only. New files: `constants/accounting.js`,
-  `middleware/enforceRoleAccess.js`, `models/accountingModel.js`,
+  page (nested in the admin sidebar under "Suivi financier") with month/year picker, "Télécharger
+  le CSV" action, and the platform-commissions preview table. Sales CSV is balanced double-entry
+  (`C<NAME>` debit + 70xxx + 44571x00 credits, pro-rated per encaissement). Turnover basis = **net**
+  (see §9). One CSV regardless of source; platform info on the debit row only. New files:
+  `constants/accounting.js`, `middleware/enforceRoleAccess.js`, `models/accountingModel.js`,
   `controllers/{accountingController, usersController}.js`, `routes/{accounting, users}.js`,
   `utils/{csv, accountingExport}.js`, `pages/AccountingPage.js`,
-  `components/SettingsAccountantAccessSection.js`. Tests: `csv` (6), `accounting-export` (12),
-  `enforce-role-access` (8), `users-model-admin` (7). Full server suite green (426).
+  `components/SettingsAccountantAccessSection.js`.
+
+  **Follow-ups merged into the same PR after Adrien's review:**
+  - **Dedicated change-password page** at `/settings/password` (`ChangePasswordPage`), common to
+    every authenticated role. The legacy Sécurité card was removed from both `SettingsPage` and
+    `AccountingPage` to deduplicate. Admin sees a new "Mot de passe" sub-item at the bottom of the
+    Paramètres group; accountant gets a minimal sidebar (Comptabilité, Mot de passe, Se déconnecter)
+    and is client-side-redirected to `/comptabilite` from any path outside
+    `[/comptabilite, /settings/password]`.
+  - **Visual journal preview** above the platforms table on `/comptabilite`: one card per
+    encaissement mirroring exactly what is in the CSV — header bar (date / kind / client / platform
+    chip / encaissement TTC / balanced badge), optional platform sub-bar (gross + commission),
+    inline journal table coloured per line type. Card border turns red on imbalance. Backed by a
+    new `GET /api/accounting/sales` JSON endpoint (`buildStructuredEntries(entries)`), a strict
+    mirror of `buildRows(entries)` so the CSV and the UI cannot drift.
+  - **Account labels** under each account number: `Location gîte`, `Prestation complémentaire`,
+    `Activité diverse`, `TVA 10 %`, `TVA 20 %`, `Compte client`. Centralised in
+    `constants/accounting.js` (`ACCOUNT_LABELS`, `accountLabel`); the CSV itself is unchanged.
+  - **Client name → reservation link (admin only)**: in each journal card, the client name is a
+    `<Link to="/reservations/{id}">` for admins, plain text for accountants (who can't reach
+    reservations anyway).
+
+  Tests: `csv` (6), `accounting-export` (19), `enforce-role-access` (8), `users-model-admin` (7).
+  Full server suite green (433).
