@@ -58,7 +58,7 @@ export function AuthProvider({ children }) {
     if (wasMustChange) {
       // Server destroyed the session — drop the local auth state so the next render goes through
       // the AuthGate again (specs/admin-account-management.md §3.3 rule 15). The caller
-      // (ChangePasswordPage) navigates to /login?reason=password-changed for the snackbar.
+      // (UserManagementPage) navigates to /login?reason=password-changed for the snackbar.
       setUser(null);
     } else {
       setUser((u) => (u ? { ...u, mustChangePassword: false } : u));

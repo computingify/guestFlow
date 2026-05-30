@@ -34,11 +34,18 @@ single-purpose hack).
 
 ## 2. Goal
 
-As an admin, Adrien can manage every user account from a dedicated **Comptes** page in the
-sidebar — create accounts with identity (first + last name, optional company + free-form note)
-and **any combination of roles**, edit them, reset their password, deactivate or delete them.
-Temporary passwords are delivered by email (not displayed on screen), and the recipient is
-forced through a "set your real password → log in again" first-login flow.
+Every authenticated user lands on a single **Gestion utilisateur** page (`/account`, sidebar
+entry) where they can change their own password. Admins additionally see a "Gestion des comptes"
+section below it, where they can manage every other account — create accounts with identity
+(first + last name, optional company + free-form note) and **any combination of roles**, edit
+them, reset their password, deactivate or delete them. Temporary passwords are delivered by email
+(not displayed on screen), and the recipient is forced through a
+"set your real password → log in again" first-login flow.
+
+> **2026-05-30 follow-up:** the original design shipped two separate pages — `/settings/password`
+> (everyone) and `/comptes` (admin only). They were merged into a single `/account` page with
+> role-gated sections, so the sidebar no longer carries two near-identical entries. The legacy
+> paths `/settings/password` and `/comptes` redirect to `/account`.
 
 ## 3. Functional rules
 
@@ -60,11 +67,18 @@ forced through a "set your real password → log in again" first-login flow.
    helper is idempotent (skipped if `user_roles` already exists and has rows). No backfill issue:
    the seeded default admin already has `role='admin'`.
 
-### 3.2 Account-management page (`/comptes`)
+### 3.2 Unified "Gestion utilisateur" page (`/account`)
 
-5. The page is **admin-only**. Routing: `/comptes` (sidebar item "Comptes",
-   `<PeopleAltIcon />`, visible only when the current user holds the `admin` role). Server-side,
-   `enforceRoleAccess` blocks the route group `/api/users/*` (except self-actions) for non-admins.
+5. The page is reachable by every authenticated user (sidebar entry **"Gestion utilisateur"**,
+   `<AdminPanelSettingsIcon />`). Route `/account`. The legacy `/settings/password` and `/comptes`
+   paths redirect to `/account` for back-compat. Content is role-gated **client + server**:
+   - **Section "Mon mot de passe"** — always visible. Wraps `ChangePasswordForm`. On a forced
+     first-login change the existing behaviour (rule 15) still fires: server destroys the session
+     and the page navigates to `/login?reason=password-changed`.
+   - **Section "Gestion des comptes"** — visible only when `userHasRole(me, ADMIN)`. The list +
+     CRUD UI documented in rules 6–13. Server-side, `enforceRoleAccess` still blocks
+     `/api/users/*` (except the self route `/users/me`) for non-admins, so a comptable bookmarking
+     `/account` cannot trigger an admin call by tampering with the URL.
 6. The page lists every user — including deactivated ones (shown greyed out with a "Désactivé"
    chip), ordered by `lastName, firstName, email`. Columns: **Nom**, **Email**, **Rôles**
    (multi-chip), **Société**, **Dernière connexion** (`—` if never), **Statut** (Actif /
@@ -221,14 +235,14 @@ forced through a "set your real password → log in again" first-login flow.
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `pages/AccountsPage.js` | — | C | The new `/comptes` admin page: PageActionBar (title + "Ajouter un compte"), table of users (`DataPageScaffold` with the columns from rule 6), row-level icon actions (edit, reset, toggle active, delete), `AccountFormDialog` (create + edit), reset/delete `ConfirmDialog`s. Reads `/api/users` + `/api/auth/me` + the roles constant. |
+| `pages/UserManagementPage.js` | — | C | The unified `/account` page (renamed from `AccountsPage.js` on 2026-05-30 when the password section was merged in). Header section "Mon mot de passe" wraps `ChangePasswordForm` for every authenticated user; the admin-only section "Gestion des comptes" below it has the PageActionBar action "Ajouter un compte", the table (md+) / stacked cards (xs) of users, row-level icon actions (edit, reset, toggle active, delete), `AccountFormDialog` (create + edit), reset/delete `ConfirmDialog`s. Reads `/api/users` + `/api/auth/me` + the roles constant. The list fetch is skipped for non-admins. |
 | `pages/SettingsPage.js` | `SettingsPage.js` | T | Removes the Accès comptable card. Adds a new **Envoi d'emails (SMTP)** section + "Envoyer un mail de test" button. Includes a `MaskedTextField` for the SMTP password (same UX as Google creds). |
-| `pages/ChangePasswordPage.js` | `ChangePasswordPage.js` | T | On 204 response when `user.mustChangePassword === true`, redirect to `/login?reason=password-changed` instead of staying on the page. A small `useEffect` on `LoginPage` reads the query string and shows the snackbar once. |
+| `pages/ChangePasswordPage.js` | — | **D** | Deleted on 2026-05-30 — its responsibilities moved into `UserManagementPage`'s "Mon mot de passe" section. The first-login redirect-to-login flow (rule 15) is preserved verbatim inside the new section. |
 | `pages/LoginPage.js` | `LoginPage.js` | T | Reads the `reason=password-changed` query param and shows the *"Mot de passe modifié. Reconnectez-vous avec votre nouveau mot de passe."* snackbar (one-shot). |
 | `components/AccountFormDialog.js` | — | C | FormDialog-based create/edit form. Fields: prénom, nom, email (disabled in edit mode), rôles (multi-select), société, note. Surface server validation errors inline. Lives next to the page since it's specifically about user identity; not a generification of FormDialog. |
 | `components/SettingsAccountantAccessSection.js` | — | **D** | Deleted (the section is gone; the file too). |
 | `components/AppSidebar.js` | `AppSidebar.js` | T | Adds the "Comptes" item (admin-only via `userHasRole(currentUser, 'admin')`). Inserted under "Paramètres" or near it. |
-| `App.js` | `App.js` | T | Registers the `/comptes` route; switches role-detection from `user.role` to `user.roles` (array). |
+| `App.js` | `App.js` | T | Registers the `/account` route; **2026-05-30:** redirects `/comptes` and `/settings/password` to `/account` via `<Navigate replace />`; renames the sidebar entry to "Gestion utilisateur" (visible to all roles, no `adminOnly` flag); removes the admin-side `Paramètres > Mot de passe` submenu; updates the accountant sidebar to point its single non-accounting item to `/account`; switches the accountant-confinement guard from `/settings/password` to `/account`. Multi-role check via `userHasRole`. |
 | `constants/roles.js` | — | C | Mirror of the server constants file. Imported by `AccountFormDialog`, `AppSidebar`, `App.js`. The two files must stay in sync — a unit test on each side checks the list (server self-check, client snapshot). |
 | `api.js` | `api.js` | T | Adds `updateUser`, `deleteUser(id, {hard})`, `sendSmtpTest()`, `getMe()`. Updates `listUsers` shape. |
 
@@ -320,7 +334,7 @@ SMTP fields start empty — the new account-creation endpoint returns
 
 ## 6. UI / UX
 
-### 6.1 `/comptes` — list page
+### 6.1 `/account` — Gestion utilisateur (admin's accounts-list view)
 
 - **PageActionBar:**
   - `title`: "Comptes"

@@ -5,16 +5,21 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 ## [Unreleased]
 
 ### Added
-- **Admin account management** (spec `admin-account-management.md`). New admin-only **Comptes** page
-  (`/comptes`, sidebar entry) listing every user with full CRUD: create with first/last name, email,
-  multi-role (admin + accountant via a multi-select), optional company + free-form note; edit;
-  reset password; soft delete (deactivate) and hard delete (only when the user has never logged in).
-  Temporary passwords are generated server-side and **emailed via SMTP** — never displayed or
-  logged. The flow uses an "email first, persist second" ordering so a failed email never leaves a
-  half-created account behind. Self-protection guards on both client and server: cannot delete
-  self, cannot remove own `admin` role, cannot reset own password from this page (use
-  `/settings/password`). A "last admin" guard rejects any action that would leave zero active
-  admins (`400 LAST_ADMIN`).
+- **Admin account management — unified "Gestion utilisateur" page** (spec
+  `admin-account-management.md`). One page at `/account` (sidebar entry "Gestion utilisateur",
+  available to every authenticated role). Top section "Mon mot de passe" lets the current user
+  change their own password (same forced-first-login redirect-to-login flow as before). For admins,
+  a second section "Gestion des comptes" lists every user with full CRUD: create with first/last
+  name, email, multi-role (admin + accountant via a multi-select), optional company + free-form
+  note; edit; reset password; soft delete (deactivate) and hard delete (only when the user has
+  never logged in). Temporary passwords are generated server-side and **emailed via SMTP** — never
+  displayed or logged. The flow uses an "email first, persist second" ordering so a failed email
+  never leaves a half-created account behind. Self-protection guards on both client and server:
+  cannot delete self, cannot remove own `admin` role, cannot reset own password from the admin
+  table (use the "Mon mot de passe" section on the same page). A "last admin" guard rejects any
+  action that would leave zero active admins (`400 LAST_ADMIN`). The legacy paths
+  `/settings/password` and `/comptes` redirect to `/account`; the `Paramètres > Mot de passe`
+  submenu and the standalone `Comptes` sidebar entry have been removed.
 - **Forced first-login re-authentication.** When a user changes the temporary password they
   received by email, the server now **destroys the session** and the client redirects to
   `/login?reason=password-changed` with a one-shot snackbar. Voluntary password changes from
