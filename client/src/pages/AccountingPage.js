@@ -6,8 +6,6 @@ import {
 import DescriptionIcon from '@mui/icons-material/Description';
 import api from '../api';
 import PageActionBar from '../components/PageActionBar';
-import ChangePasswordForm from '../components/ChangePasswordForm';
-import { useAuth } from '../hooks/useAuth';
 
 /**
  * Comptabilité — read-only page for the accountant role (also accessible to admins).
@@ -36,8 +34,6 @@ function formatDate(iso) {
 }
 
 export default function AccountingPage() {
-  const { changePassword } = useAuth();
-  const [passwordMessage, setPasswordMessage] = useState(null);
   const today = new Date();
   // Default to the previous month — accounting work is typically retrospective.
   const defaultDate = useMemo(() => {
@@ -195,26 +191,6 @@ export default function AccountingPage() {
                 </Table>
               </Box>
             )}
-          </CardContent>
-        </Card>
-
-        <Card variant="outlined" sx={{ mt: 3 }}>
-          <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-            <Typography variant="h6" sx={{ mb: 0.5 }}>Sécurité</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Changer le mot de passe de votre compte.
-            </Typography>
-            {passwordMessage && (
-              <Alert severity="success" sx={{ mb: 2 }} onClose={() => setPasswordMessage(null)}>
-                {passwordMessage}
-              </Alert>
-            )}
-            <Box sx={{ maxWidth: 420 }}>
-              <ChangePasswordForm
-                onSubmit={changePassword}
-                onSuccess={() => setPasswordMessage('Mot de passe mis à jour.')}
-              />
-            </Box>
           </CardContent>
         </Card>
       </Box>

@@ -28,6 +28,7 @@ import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
 import DescriptionIcon from '@mui/icons-material/Description';
 import SettingsIcon from '@mui/icons-material/Settings';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
+import LockIcon from '@mui/icons-material/Lock';
 import MenuIcon from '@mui/icons-material/Menu';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -55,6 +56,7 @@ import SettingsPage from './pages/SettingsPage';
 import EstablishmentClosuresPage from './pages/EstablishmentClosuresPage';
 import DevisPage from './pages/DevisPage';
 import AccountingPage from './pages/AccountingPage';
+import ChangePasswordPage from './pages/ChangePasswordPage';
 
 const DRAWER_WIDTH = 240;
 
@@ -70,7 +72,8 @@ const navItems = [
 function NavContent({ onItemClick }) {
   const location = useLocation();
   const { user, logout } = useAuth();
-  // Accountants get a minimal sidebar — read-only, accounting-only.
+  // Accountants get a minimal sidebar — read-only, accounting-only. The only Paramètres item they
+  // can reach is the change-password page (the role guard 403s every other settings/business route).
   if (user && user.role === 'accountant') {
     return (
       <List sx={{ pt: 2 }}>
@@ -82,6 +85,15 @@ function NavContent({ onItemClick }) {
         >
           <ListItemIcon><DescriptionIcon /></ListItemIcon>
           <ListItemText primary="Comptabilité" />
+        </ListItemButton>
+        <ListItemButton
+          component={Link}
+          to="/settings/password"
+          onClick={onItemClick}
+          selected={location.pathname === '/settings/password'}
+        >
+          <ListItemIcon><LockIcon /></ListItemIcon>
+          <ListItemText primary="Mot de passe" />
         </ListItemButton>
         <ListItemButton onClick={() => { logout(); onItemClick && onItemClick(); }}>
           <ListItemIcon><LogoutIcon /></ListItemIcon>
@@ -138,6 +150,7 @@ function NavContent({ onItemClick }) {
     }
     if (
       location.pathname === '/settings'
+      || location.pathname === '/settings/password'
       || location.pathname === '/options'
       || location.pathname === '/resources'
       || location.pathname === '/clients'
@@ -170,6 +183,7 @@ function NavContent({ onItemClick }) {
               } else if (item.path === '/settings') {
                 setSettingsMenuOpen(
                   location.pathname === '/settings'
+                    || location.pathname === '/settings/password'
                     || location.pathname === '/options'
                     || location.pathname === '/resources'
                     || location.pathname === '/clients'
@@ -198,6 +212,7 @@ function NavContent({ onItemClick }) {
                   : item.path === '/settings'
                     ? (
                       location.pathname === '/settings'
+                      || location.pathname === '/settings/password'
                       || location.pathname === '/options'
                       || location.pathname === '/resources'
                       || location.pathname === '/clients'
@@ -432,6 +447,16 @@ function NavContent({ onItemClick }) {
                   <ListItemIcon sx={{ minWidth: 34 }}><EventBusyIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Fermetures" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
                 </ListItemButton>
+                <ListItemButton
+                  component={Link}
+                  to="/settings/password"
+                  onClick={(e) => onItemClick && onItemClick(e, '/settings/password')}
+                  selected={location.pathname === '/settings/password'}
+                  sx={{ pl: 6, py: 0.75, borderRadius: 2, mb: 0.25 }}
+                >
+                  <ListItemIcon sx={{ minWidth: 34 }}><LockIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="Mot de passe" primaryTypographyProps={{ variant: 'body2', noWrap: true }} />
+                </ListItemButton>
               </List>
             </Collapse>
           )}
@@ -455,12 +480,12 @@ function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [versionInfo, setVersionInfo] = useState(null);
 
-  // Accountants are confined to /comptabilite (the server already 403s every other endpoint, but
-  // we redirect at the client so they don't see empty shells).
+  // Accountants are confined to /comptabilite and /settings/password (the server already 403s every
+  // other endpoint, but we redirect at the client so they don't see empty shells).
   useEffect(() => {
-    if (user && user.role === 'accountant' && location.pathname !== '/comptabilite') {
-      navigate('/comptabilite', { replace: true });
-    }
+    if (!user || user.role !== 'accountant') return;
+    const allowed = location.pathname === '/comptabilite' || location.pathname === '/settings/password';
+    if (!allowed) navigate('/comptabilite', { replace: true });
   }, [user, location.pathname, navigate]);
 
   useEffect(() => {
@@ -601,6 +626,7 @@ function AppShell() {
           <Route path="/school-holidays" element={<SchoolHolidaysPage />} />
           <Route path="/establishment-closures" element={<EstablishmentClosuresPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/settings/password" element={<ChangePasswordPage />} />
           <Route path="/comptabilite" element={<AccountingPage />} />
         </Routes>
       </Box>
