@@ -122,9 +122,72 @@ function buildRows(entries) {
   return rows;
 }
 
+// Same data as the CSV but in a structured, render-friendly shape (one object per encaissement, lines
+// already classified by type so the UI can colour them). Guarantees the rendered preview = the CSV
+// content: each entry's lines are produced from the same `entryToRows` walk so any future change to
+// the export (e.g. an extra commission-as-charge line) appears in both at once.
+function entryToStructured(entry) {
+  const rows = entryToRows(entry); // array-of-arrays matching CSV_HEADERS
+  if (rows.length === 0) return null;
+  const [day, month, year] = rows[0];
+  const platformInfo = (entry.platform && entry.platform !== 'direct')
+    ? {
+        platform: entry.platform,
+        gross: entry.clientGrossAmount == null ? null : Number(entry.clientGrossAmount),
+        commission: entry.clientGrossAmount == null ? null
+          : Math.max(0, round2(Number(entry.clientGrossAmount) - Number(entry.finalPrice))),
+      }
+    : { platform: null, gross: null, commission: null };
+
+  const lines = rows.map(([d, m, y, compte, libelle, debit, credit]) => ({
+    compte: String(compte),
+    libelle: String(libelle),
+    debit: typeof debit === 'number' ? debit : null,
+    credit: typeof credit === 'number' ? credit : null,
+    type: classifyLine(compte),
+  }));
+
+  const sumDebits = round2(lines.reduce((s, l) => s + (l.debit || 0), 0));
+  const sumCredits = round2(lines.reduce((s, l) => s + (l.credit || 0), 0));
+  const balanced = sumDebits === sumCredits;
+
+  return {
+    reservationId: entry.reservationId,
+    kind: entry.kind, // 'deposit' | 'balance'
+    day, month, year,
+    paidDate: entry.paidDate,
+    client: entry.client,
+    libelle: rows[0][4], // already-computed display libellé
+    clientAccount: rows[0][3], // C+NAME
+    encaissementTtc: round2(entry.encaissementTtc),
+    finalPrice: round2(entry.finalPrice),
+    fraction: entry.fraction,
+    platform: platformInfo,
+    lines,
+    sumDebits,
+    sumCredits,
+    balanced,
+  };
+}
+
+// 'client' = auxiliary debit (C…) — 'revenue' = comptes 70xxx — 'vat' = comptes 44571xxx.
+function classifyLine(compte) {
+  const s = String(compte);
+  if (s.startsWith('C')) return 'client';
+  if (s.startsWith('70')) return 'revenue';
+  if (s.startsWith('44571')) return 'vat';
+  return 'other';
+}
+
+function buildStructuredEntries(entries) {
+  return (entries || []).map(entryToStructured).filter(Boolean);
+}
+
 module.exports = {
   CSV_HEADERS,
   entryToRows,
   buildRows,
-  __test: { splitIsoDate, round2 },
+  entryToStructured,
+  buildStructuredEntries,
+  __test: { splitIsoDate, round2, classifyLine },
 };

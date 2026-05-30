@@ -1,7 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { entryToRows, buildRows, CSV_HEADERS } = require('../utils/accountingExport');
+const {
+  entryToRows, buildRows, entryToStructured, buildStructuredEntries, CSV_HEADERS,
+  __test: { classifyLine },
+} = require('../utils/accountingExport');
 const { buildClientAccount } = require('../constants/accounting');
 
 // Pure engine: encaissement entries → balanced double-entry journal rows.
@@ -150,4 +153,64 @@ test('client account formatting: 6 chars uppercased, accent-stripped, padded wit
   assert.equal(buildClientAccount('Saint-Cyr'), 'CSAINTC'); // hyphen removed, 6 chars
   assert.equal(buildClientAccount(''),          'CXXXXXX');
   assert.equal(buildClientAccount(null),        'CXXXXXX');
+});
+
+// ---------- Structured (JSON) preview ----------
+
+test('classifyLine: C* → client, 70* → revenue, 44571* → vat', () => {
+  assert.equal(classifyLine('CDUPONT'), 'client');
+  assert.equal(classifyLine('70600000'), 'revenue');
+  assert.equal(classifyLine('70600010'), 'revenue');
+  assert.equal(classifyLine('70601000'), 'revenue');
+  assert.equal(classifyLine('44571100'), 'vat');
+  assert.equal(classifyLine('44571200'), 'vat');
+  assert.equal(classifyLine('999'),      'other');
+});
+
+test('entryToStructured: 1 entry → 1 grouped object with classified lines + balanced flag', () => {
+  const out = entryToStructured(makeEntry());
+  assert.equal(out.reservationId, 42);
+  assert.equal(out.kind, 'deposit');
+  assert.equal(out.day, 15);
+  assert.equal(out.month, 8);
+  assert.equal(out.year, 2026);
+  assert.equal(out.clientAccount, 'CDUPONT'); // 'DUPONT' fits exactly the 6-char budget — no padding.
+  assert.equal(out.libelle, 'Jean Dupont');
+  assert.equal(out.balanced, true);
+  // The first line is the client debit; the rest are classified credits.
+  assert.equal(out.lines[0].type, 'client');
+  assert.equal(out.lines[0].debit, 60);
+  assert.equal(out.lines[0].credit, null);
+  for (let i = 1; i < out.lines.length; i++) {
+    assert.equal(out.lines[i].debit, null);
+    assert.equal(typeof out.lines[i].credit, 'number');
+    assert.ok(out.lines[i].type === 'revenue' || out.lines[i].type === 'vat');
+  }
+});
+
+test('entryToStructured: direct booking → platform is null/empty', () => {
+  const out = entryToStructured(makeEntry()); // direct
+  assert.equal(out.platform.platform, null);
+  assert.equal(out.platform.gross, null);
+  assert.equal(out.platform.commission, null);
+});
+
+test('entryToStructured: platform booking → platform name + gross + commission exposed', () => {
+  const out = entryToStructured(makeEntry({ platform: 'airbnb', clientGrossAmount: 240 }));
+  assert.equal(out.platform.platform, 'airbnb');
+  assert.equal(out.platform.gross, 240);
+  assert.equal(out.platform.commission, 40); // 240 - 200
+});
+
+test('buildStructuredEntries: mirrors buildRows entry-for-entry', () => {
+  const a = makeEntry();
+  const b = makeEntry({ paidDate: '2026-08-20', reservationId: 99, encaissementTtc: 80, fraction: 0.4 });
+  const structured = buildStructuredEntries([a, b]);
+  const csvRows = buildRows([a, b]);
+  // Same number of lines total.
+  const totalLines = structured.reduce((s, e) => s + e.lines.length, 0);
+  assert.equal(totalLines, csvRows.length);
+  assert.equal(structured.length, 2);
+  assert.equal(structured[0].reservationId, 42);
+  assert.equal(structured[1].reservationId, 99);
 });

@@ -5,7 +5,7 @@
  */
 
 const defaultAccountingModel = require('../models/accountingModel');
-const { buildRows, CSV_HEADERS } = require('../utils/accountingExport');
+const { buildRows, buildStructuredEntries, CSV_HEADERS } = require('../utils/accountingExport');
 const { serializeCsv } = require('../utils/csv');
 
 function parseMonthYear(query) {
@@ -28,6 +28,27 @@ function createAccountingController(accountingModel) {
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="ventes-${params.year}-${mm}.csv"`);
       return res.send(csv);
+    },
+
+    // JSON mirror of the CSV — same encaissements, same lines, but grouped per entry and pre-classified
+    // (client / revenue / vat) so the UI can render the journal as cards. The strict guarantee: every row
+    // in the CSV appears as exactly one `line` in the JSON.
+    salesJson(req, res) {
+      const params = parseMonthYear(req.query);
+      if (!params) return res.status(400).json({ error: 'INVALID_MONTH_OR_YEAR' });
+      const entries = accountingModel.encaissementsByMonth(params);
+      const structured = buildStructuredEntries(entries);
+      const totalDebits = structured.reduce((s, e) => s + e.sumDebits, 0);
+      const totalCredits = structured.reduce((s, e) => s + e.sumCredits, 0);
+      return res.json({
+        entries: structured,
+        totals: {
+          entriesCount: structured.length,
+          totalDebits: Math.round(totalDebits * 100) / 100,
+          totalCredits: Math.round(totalCredits * 100) / 100,
+          allBalanced: structured.every((e) => e.balanced),
+        },
+      });
     },
 
     // JSON preview of the platform commissions in the month — drives the AccountingPage table.

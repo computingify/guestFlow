@@ -1,11 +1,25 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box, Card, CardContent, Typography, MenuItem, TextField, Table, TableHead, TableRow,
-  TableCell, TableBody, Stack, Alert,
+  TableCell, TableBody, Stack, Alert, Chip, CircularProgress,
 } from '@mui/material';
 import DescriptionIcon from '@mui/icons-material/Description';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import PersonIcon from '@mui/icons-material/Person';
+import EuroIcon from '@mui/icons-material/Euro';
+import StorefrontIcon from '@mui/icons-material/Storefront';
 import api from '../api';
 import PageActionBar from '../components/PageActionBar';
+
+// Visual classification: client (auxiliary debit) = amber, revenue (70xxx) = green,
+// VAT (44571xxx) = blue. Used to colour rows and the per-line chip in the journal preview.
+const LINE_STYLES = {
+  client:  { label: 'Client',  color: 'warning', bg: 'rgba(255, 152, 0, 0.08)' },
+  revenue: { label: 'Produit', color: 'success', bg: 'rgba(76, 175, 80, 0.08)' },
+  vat:     { label: 'TVA',     color: 'info',    bg: 'rgba(33, 150, 243, 0.08)' },
+  other:   { label: 'Autre',   color: 'default', bg: 'rgba(0, 0, 0, 0.04)' },
+};
 
 /**
  * Comptabilité — read-only page for the accountant role (also accessible to admins).
@@ -44,7 +58,9 @@ export default function AccountingPage() {
   const [month, setMonth] = useState(defaultDate.month);
   const [year, setYear] = useState(defaultDate.year);
   const [preview, setPreview] = useState(null);
+  const [sales, setSales] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [salesLoading, setSalesLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -56,11 +72,14 @@ export default function AccountingPage() {
   useEffect(() => {
     let mounted = true;
     setLoading(true);
+    setSalesLoading(true);
     setError(null);
-    api.getAccountingPlatforms(month, year)
-      .then((data) => { if (mounted) setPreview(data); })
+    Promise.all([
+      api.getAccountingPlatforms(month, year).then((d) => { if (mounted) setPreview(d); }),
+      api.getAccountingSales(month, year).then((d) => { if (mounted) setSales(d); }),
+    ])
       .catch((err) => { if (mounted) setError(err.message || 'Impossible de charger l’aperçu.'); })
-      .finally(() => { if (mounted) setLoading(false); });
+      .finally(() => { if (mounted) { setLoading(false); setSalesLoading(false); } });
     return () => { mounted = false; };
   }, [month, year]);
 
@@ -142,6 +161,54 @@ export default function AccountingPage() {
           </CardContent>
         </Card>
 
+        <Card variant="outlined" sx={{ mb: 3 }}>
+          <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2, flexWrap: 'wrap', gap: 1 }}>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>Détail des écritures du mois</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Aperçu exact du contenu du CSV : une carte par encaissement, partie double balancée.
+                </Typography>
+              </Box>
+              {sales && sales.totals.entriesCount > 0 && (
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Chip size="small" label={`${sales.totals.entriesCount} encaissement${sales.totals.entriesCount > 1 ? 's' : ''}`} />
+                  <Chip
+                    size="small"
+                    color={sales.totals.allBalanced ? 'success' : 'error'}
+                    icon={sales.totals.allBalanced ? <CheckCircleIcon /> : <WarningAmberIcon />}
+                    label={sales.totals.allBalanced ? 'Tout équilibré' : 'Déséquilibre détecté'}
+                  />
+                  <Chip size="small" variant="outlined" label={`Total débits ${formatEur(sales.totals.totalDebits)}`} />
+                </Stack>
+              )}
+            </Stack>
+
+            {salesLoading && (
+              <Stack direction="row" alignItems="center" spacing={1} sx={{ py: 2 }}>
+                <CircularProgress size={18} />
+                <Typography variant="body2" color="text.secondary">Chargement des écritures…</Typography>
+              </Stack>
+            )}
+
+            {!salesLoading && sales && sales.entries.length === 0 && (
+              <Box sx={{ py: 3, textAlign: 'center' }}>
+                <Typography variant="body2" color="text.secondary">
+                  Aucun encaissement pour ce mois — rien à exporter.
+                </Typography>
+              </Box>
+            )}
+
+            {!salesLoading && sales && sales.entries.length > 0 && (
+              <Stack spacing={2}>
+                {sales.entries.map((entry) => (
+                  <JournalEntryCard key={`${entry.reservationId}-${entry.kind}`} entry={entry} />
+                ))}
+              </Stack>
+            )}
+          </CardContent>
+        </Card>
+
         <Card variant="outlined">
           <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
             <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
@@ -195,5 +262,115 @@ export default function AccountingPage() {
         </Card>
       </Box>
     </Box>
+  );
+}
+
+// ─── JournalEntryCard ──────────────────────────────────────────────────────────────────────────
+// One card per encaissement. Header shows the date, kind (acompte / solde), client, encaissement TTC,
+// and the platform info if non-direct. The body is a balanced mini-journal coloured by line type.
+
+const KIND_LABELS = { deposit: 'Acompte', balance: 'Solde' };
+
+function JournalEntryCard({ entry }) {
+  const isPlatform = Boolean(entry.platform.platform);
+  return (
+    <Card variant="outlined" sx={{ borderColor: entry.balanced ? 'divider' : 'error.main' }}>
+      <Box
+        sx={{
+          px: { xs: 2, sm: 2.5 }, py: 1.5,
+          bgcolor: 'grey.50',
+          borderBottom: '1px solid', borderColor: 'divider',
+          display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 1.5,
+        }}
+      >
+        <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={1.5}>
+          <Chip
+            size="small"
+            color="primary"
+            variant="outlined"
+            label={`${String(entry.day).padStart(2, '0')}/${String(entry.month).padStart(2, '0')}/${entry.year}`}
+          />
+          <Chip size="small" label={KIND_LABELS[entry.kind] || entry.kind} />
+          <Stack direction="row" alignItems="center" spacing={0.75}>
+            <PersonIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>{entry.libelle}</Typography>
+          </Stack>
+          {isPlatform && (
+            <Chip
+              size="small"
+              color="info"
+              variant="outlined"
+              icon={<StorefrontIcon />}
+              label={entry.platform.platform}
+            />
+          )}
+        </Stack>
+        <Stack direction="row" alignItems="center" spacing={1.5}>
+          <Stack direction="row" alignItems="center" spacing={0.5}>
+            <EuroIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+              {formatEur(entry.encaissementTtc)}
+            </Typography>
+          </Stack>
+          <Chip
+            size="small"
+            color={entry.balanced ? 'success' : 'error'}
+            icon={entry.balanced ? <CheckCircleIcon /> : <WarningAmberIcon />}
+            label={entry.balanced ? 'Équilibré' : 'Déséquilibré'}
+            sx={{ fontWeight: 600 }}
+          />
+        </Stack>
+      </Box>
+
+      {isPlatform && (
+        <Box sx={{ px: { xs: 2, sm: 2.5 }, py: 1, bgcolor: 'rgba(33, 150, 243, 0.04)', borderBottom: '1px dashed', borderColor: 'divider' }}>
+          <Stack direction="row" spacing={3} flexWrap="wrap" alignItems="center">
+            <Typography variant="caption" color="text.secondary">
+              Prix payé client : <strong>{formatEur(entry.platform.gross)}</strong>
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Commission plateforme : <strong>{formatEur(entry.platform.commission)}</strong>
+            </Typography>
+          </Stack>
+        </Box>
+      )}
+
+      <Table size="small" sx={{ '& td, & th': { borderColor: 'rgba(0,0,0,0.06)' } }}>
+        <TableHead>
+          <TableRow sx={{ bgcolor: 'grey.50' }}>
+            <TableCell sx={{ width: 80 }}>Type</TableCell>
+            <TableCell sx={{ width: 110 }}>Compte</TableCell>
+            <TableCell>Libellé</TableCell>
+            <TableCell align="right" sx={{ width: 110 }}>Débit</TableCell>
+            <TableCell align="right" sx={{ width: 110 }}>Crédit</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {entry.lines.map((line, idx) => {
+            const s = LINE_STYLES[line.type] || LINE_STYLES.other;
+            return (
+              <TableRow key={idx} sx={{ bgcolor: s.bg }}>
+                <TableCell>
+                  <Chip size="small" color={s.color} variant="filled" label={s.label} sx={{ height: 22 }} />
+                </TableCell>
+                <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.85rem', fontWeight: 600 }}>{line.compte}</TableCell>
+                <TableCell sx={{ color: 'text.secondary' }}>{line.libelle}</TableCell>
+                <TableCell align="right" sx={{ fontFamily: 'monospace', fontWeight: line.debit != null ? 700 : 400 }}>
+                  {line.debit != null ? formatEur(line.debit) : '—'}
+                </TableCell>
+                <TableCell align="right" sx={{ fontFamily: 'monospace', fontWeight: line.credit != null ? 700 : 400 }}>
+                  {line.credit != null ? formatEur(line.credit) : '—'}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+          <TableRow sx={{ bgcolor: 'grey.100' }}>
+            <TableCell colSpan={3} sx={{ fontWeight: 700 }}>Σ</TableCell>
+            <TableCell align="right" sx={{ fontFamily: 'monospace', fontWeight: 700 }}>{formatEur(entry.sumDebits)}</TableCell>
+            <TableCell align="right" sx={{ fontFamily: 'monospace', fontWeight: 700 }}>{formatEur(entry.sumCredits)}</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+    </Card>
   );
 }

@@ -198,6 +198,7 @@ const api = {
   getDevisHistory: (id) => request(`/devis/${id}/history`),
 
   // Accounting (read-only; admin + accountant)
+  getAccountingSales: (month, year) => request(`/accounting/sales?month=${month}&year=${year}`),
   getAccountingPlatforms: (month, year) => request(`/accounting/platforms?month=${month}&year=${year}`),
   downloadAccountingSalesCsv: async (month, year) => {
     const res = await fetch(`${API}/accounting/sales.csv?month=${month}&year=${year}`, { credentials: 'include' });
