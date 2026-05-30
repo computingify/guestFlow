@@ -331,6 +331,13 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 - `routes/devis.js` now sources app settings via `settingsModel` (instead of the removed `db.getAppSettings`).
 
 ### Fixed
+- **Per-platform tourist tax toggle didn't update the property's iCal sources table:** the SELECT in
+  `propertiesModel.getByIdWithDetails` (powering `GET /api/properties/:id`) was missing
+  `collectsTouristTax`, so the nested `icalSources` array always returned the field as `undefined`.
+  The "Taxe collectée" chip on `/properties/:id` then fell back to "Plateforme" regardless of the
+  saved value, even though the dedicated `GET /api/properties/:id/ical-sources` endpoint (and the
+  pricing engine + Suivi page) had the right value. SELECT now includes `collectsTouristTax`;
+  regression test added (`properties-model`). Spec `per-platform-tourist-tax-collection.md` updated.
 - **Public iCal export leaked devis (introduced by the devis↔reservation fusion):** the `.ics` feed
   selected all `reservations` rows for a property without a `kind` filter, so after the fusion a devis was
   exported as a booked event — external platforms would treat a tentative quote as unavailable and block

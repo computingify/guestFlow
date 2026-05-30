@@ -77,10 +77,12 @@ visible inconsistency between the reservation summary, the export, and the Suivi
 |---|---|---|---|
 | `database.js` | `database.js` | T | `ALTER TABLE ical_sources ADD COLUMN collectsTouristTax INTEGER NOT NULL DEFAULT 1`; matching column in the `CREATE TABLE` for fresh installs. Idempotent (skips if column already exists). |
 | `models/propertyIcalModel.js` | `propertyIcalModel.js` | T | `SOURCE_COLUMNS` lists the new column; `createSource` defaults to `1` unless the body explicitly says `false`/`0`; `updateSource` preserves the existing value when the body omits it. |
+| `models/propertiesModel.js` | `propertiesModel.js` | T | `getByIdWithDetails` SELECT for `icalSources` must include `collectsTouristTax` (otherwise the iCal sources table on `/properties/:id` shows the old "Plateforme" chip regardless of the saved value). Bugfix 2026-05-30. |
 | `utils/pricing.js` | `pricing.js` | T | New `isPlatformCollectingTouristTax(db, propertyId, platformKey)` helper. The hardcoded `platform !== 'direct'` check is replaced by this lookup. The helper is defensive (`try/catch` on the SELECT to handle minimal test DBs). |
 | `models/financeModel.js` | `financeModel.js` | T | `getTouristTaxExtraction` SQL `WHERE` now reads `r.platform = 'direct' OR EXISTS (SELECT 1 FROM ical_sources s WHERE s.propertyId = r.propertyId AND lower(s.platformKey) = lower(r.platform) AND s.collectsTouristTax = 0)`. |
 | `controllers/propertyIcalController.js` | — | — | No change — controller passes `req.body` through; the model handles the new field. |
 | `tests/` | `pricing-tourist-tax-platform-collection.unit.test.js` | C | Direct / collects=true / collects=false / no matching source / case-insensitive / missing table — 6 cases. |
+| `tests/` | `properties-model.unit.test.js` | T | Added regression test ensuring `getByIdWithDetails` exposes `collectsTouristTax` on each `icalSources` row (2026-05-30). |
 
 ### 4.2 Client side (`client/src/`)
 
@@ -102,6 +104,7 @@ visible inconsistency between the reservation summary, the export, and the Suivi
 
 | Method | Endpoint | Request body | Response | Notes |
 |---|---|---|---|---|
+| GET | `/api/properties/:id` | — | `icalSources[].collectsTouristTax: 0/1` | unchanged endpoint, additional field on the nested array (added 2026-05-30 to fix the table chip on `/properties/:id`). |
 | GET | `/api/properties/:id/ical-sources` | — | rows include `collectsTouristTax: 0/1` | unchanged endpoint, additional field. |
 | POST | `/api/properties/:id/ical-sources` | `{ … , collectsTouristTax?: boolean }` | created row | defaults to `1` when omitted. |
 | PUT | `/api/properties/:id/ical-sources/:sourceId` | `{ … , collectsTouristTax?: boolean }` | updated row | preserves existing value when omitted. |
@@ -142,6 +145,8 @@ owner explicitly flips one to `0`.
 - [x] `pricing-tourist-tax-platform-collection.unit.test.js` (6) — direct charges, default-collects,
       explicit-collects=false, no matching source falls back to collects, case-insensitive match,
       missing `ical_sources` table doesn't crash the engine.
+- [x] `properties-model.unit.test.js` — `getByIdWithDetails` exposes `collectsTouristTax` on each
+      iCal source (regression guard, 2026-05-30).
 
 ### Manual UI verification
 - [x] Property form — adding a new iCal source with the toggle ON, then OFF, then editing it back.
