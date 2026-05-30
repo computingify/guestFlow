@@ -149,13 +149,21 @@ standard).
     payments were recorded), the pricing engine surfaces the leftover as a **third encaissement** named
     *Complément à percevoir*. It is **auto-derived** as `max(0, totalStayPrice − depositAmount − balanceAmount)`
     while unpaid, and **frozen** in the DB once `complementPaid = 1` (same model as deposit/balance —
-    once the money has actually been received, the engine never erodes it). On the reservation form, a
-    new orange-tinted block appears under Solde **only when `complementAmount > 0`**, with a single
-    "Marquer complément payé" button and a "Payé le" date input (defaults to today on flip-to-paid,
-    cleared on flip-to-unpaid). Typically paid at end of stay for on-site extras. The accounting
-    export treats it as a 3rd encaissement type alongside deposit and balance — same balanced
-    double-entry shape, pro-rated by `complementAmount / totalStayPrice`, dated at `complementPaidDate`.
-    Deposit + Balance + Complement always sum back to `totalStayPrice` (modulo rounding).
+    once the money has actually been received, the engine never erodes it). Typically paid at end of
+    stay for on-site extras. The accounting export treats it as a 3rd encaissement type alongside
+    deposit and balance — same balanced double-entry shape, pro-rated by
+    `complementAmount / totalStayPrice`, dated at `complementPaidDate`. Deposit + Balance + Complement
+    always sum back to `totalStayPrice` (modulo rounding).
+    **UI placement** — only when `complementAmount > 0`:
+    - **In the FinanceSection** (under Solde): mirrors the Acompte / Solde visual exactly (title +
+      amount caption + "Marquer complément payé" button with the standard outlined-inherit /
+      contained-success states + "Payé le" date input on flip-to-paid). Wrapped in a **red 1 px
+      border** while unpaid to signal "à percevoir"; the border vanishes once paid, so the block
+      drops back to the standard look of a paid Acompte/Solde — no orange-tinted background, no
+      extra explanation paragraph.
+    - **In the right-side `PricingSummary` panel**: a dedicated line between **Solde** and
+      **Caution**, label in red while unpaid, with a "Complément payé" chip below it once paid
+      (same visual as Solde payé).
 29. **Pro-rata base = totalStayPrice (= finalPrice + tourist tax)** — the accounting export now
     pro-rates every encaissement against the **total stay TTC** including the tourist tax, not just
     `finalPrice`. This was a quiet inaccuracy on prior runs (the deposit/balance percentages drifted
