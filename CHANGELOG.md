@@ -96,7 +96,7 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   ritual.
 
 ### Fixed
-- **`issue-letsencrypt-cert-http01.sh` — three bugs uncovered during the 2026-05-31 prod
+- **`issue-letsencrypt-cert-http01.sh` — four bugs uncovered during the 2026-05-31 prod
   bringup that previously needed manual workarounds on every run.**
   - *acme.sh installer flag dropped upstream* (`Unknown parameter: ----install-online`): the
     legacy `sh -s -- --install-online --email <addr> --home <path>` form was rejected by the
@@ -119,6 +119,16 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
     previously-hardcoded `adrien` — works on Adrien's Pi where the deploy user is `pi`. As
     a side-effect, the daily renewal cron now writes to the same path because acme.sh
     persists `--install-cert` targets in its per-domain conf.
+  - *`--reloadcmd` ran as root, didn't reach the `pi`-owned PM2 daemon* (caught right after
+    the first prod-cert install: cert file on disk was the real Let's Encrypt one, but
+    `openssl s_client -connect localhost:4000` kept showing the previous staging cert). The
+    reloadcmd was `pm2 restart guestflow --update-env >/dev/null 2>&1 || true` — invoked
+    from acme.sh's root context, root's PM2 doesn't know the `guestflow` process and the
+    call silently no-op'd; the `|| true` then masked the failure. The script now wraps the
+    reload in `sudo -u $CERT_OWNER` when CERT_OWNER is non-root, and removes the noise
+    suppression so any failure surfaces in acme.sh's output (and in cron emails at renewal
+    time). acme.sh persists `--reloadcmd` per-domain, so re-running `--install-cert` (which
+    this script does on every invocation) updates the value for all future renewals.
   README §HTTPS — *Real Let's Encrypt cert via Freebox port-forward* — gains the operator
   walkthrough split into staging-first + `--force` for prod, plus a *Troubleshooting* block
   covering the four pitfalls actually hit on 2026-05-31: the `.com` vs `.fr` DDNS suffix

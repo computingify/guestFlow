@@ -209,11 +209,22 @@ fi
 CERT_OUT="$CERTS_DIR/server.crt"
 KEY_OUT="$CERTS_DIR/server.key"
 
+# `pm2 restart` must run as the user PM2 was registered under (e.g. `pi`) — when run from
+# the cron-as-root context that acme.sh inherits, root's PM2 daemon doesn't know about the
+# `pi`-owned guestflow process and the call is a silent no-op. So if we have a non-root
+# CERT_OWNER, wrap the reload in `sudo -u <user>`. We also drop the `>/dev/null 2>&1 || true`
+# noise-suppression: when the reload fails, we WANT acme.sh to surface the error (and cron
+# to email it on the next renewal) rather than carry on with Node still serving the old cert.
+RELOAD_CMD="pm2 restart guestflow --update-env"
+if [ "$CERT_OWNER" != "root" ] && id "$CERT_OWNER" >/dev/null 2>&1; then
+  RELOAD_CMD="sudo -u $CERT_OWNER pm2 restart guestflow --update-env"
+fi
+
 echo "→ Installing cert into $CERTS_DIR (where PM2 already reads from)..."
 "$ACME_BIN" --install-cert -d "$HOSTNAME" \
   --fullchain-file "$CERT_OUT" \
   --key-file "$KEY_OUT" \
-  --reloadcmd "pm2 restart guestflow --update-env >/dev/null 2>&1 || true"
+  --reloadcmd "$RELOAD_CMD"
 
 # Adrien's PM2 process runs under the regular user, not root. Make the cert files readable by
 # everyone on the host (the key still has its acme.sh-set mode 0600 by default — we relax just
