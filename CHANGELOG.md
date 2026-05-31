@@ -96,8 +96,9 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   ritual.
 
 ### Fixed
-- **`issue-letsencrypt-cert-http01.sh` — four bugs uncovered during the 2026-05-31 prod
-  bringup that previously needed manual workarounds on every run.**
+- **`issue-letsencrypt-cert-http01.sh` (4 bugs) + `.github/workflows/deploy.yml` (CI Node
+  alignment + native rebuild) — everything caught during the 2026-05-31 prod bringup that
+  previously needed manual workarounds on every run.**
   - *acme.sh installer flag dropped upstream* (`Unknown parameter: ----install-online`): the
     legacy `sh -s -- --install-online --email <addr> --home <path>` form was rejected by the
     current `get.acme.sh`. Switched to the documented key=value form
@@ -129,6 +130,26 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
     suppression so any failure surfaces in acme.sh's output (and in cron emails at renewal
     time). acme.sh persists `--reloadcmd` per-domain, so re-running `--install-cert` (which
     this script does on every invocation) updates the value for all future renewals.
+- **`.github/workflows/deploy.yml` — CI Node version aligned with the Pi's runtime + force
+  rebuild of native modules after install.** Every release deploy was leaving the
+  `better-sqlite3` native compiled for the wrong Node ABI, then PM2 silently crashed on
+  next restart (`ERR_DLOPEN_FAILED`, `NODE_MODULE_VERSION 127 ... 137`). Two compounding
+  causes:
+  - `actions/setup-node@v4` was pinned to `node-version: '22'`, but the Pi's system Node
+    (which the PM2 daemon runs under) had been bumped by apt unattended-upgrades to v24.
+    The deploy built `better-sqlite3` against the v22 ABI; PM2 spawned Node v24 → load
+    refused. Pin bumped to `'24'` to match the current system. Comment added explaining
+    that bumping the Pi's Node requires bumping this pin in the same PR.
+  - Even with the right pin, `npm ci` happily downloads `better-sqlite3`'s prebuilt
+    binaries from GitHub releases (matching the pinned major), which historically have
+    drifted from the running Node's exact ABI. Added an explicit `npm rebuild
+    --build-from-source better-sqlite3` step right after `npm ci` and a `require()` smoke
+    test — a broken rebuild fails the deploy loudly here, rather than later via the PM2
+    errored / crash-loop state. Plus a `Sanity-check Node + npm versions` step at the top
+    that prints `node -v`, `npm -v`, `NODE_MODULE_VERSION` and warns if the existing PM2
+    daemon's Node major differs from the runner's — surfaces drift in the deploy log.
+  Manual recovery on a Pi that hit the bad state: `cd ~/guestflow/current/server && npm
+  rebuild --build-from-source better-sqlite3 && pm2 restart guestflow --update-env`.
   README §HTTPS — *Real Let's Encrypt cert via Freebox port-forward* — gains the operator
   walkthrough split into staging-first + `--force` for prod, plus a *Troubleshooting* block
   covering the four pitfalls actually hit on 2026-05-31: the `.com` vs `.fr` DDNS suffix
