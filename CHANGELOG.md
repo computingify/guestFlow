@@ -96,7 +96,7 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
   ritual.
 
 ### Fixed
-- **`issue-letsencrypt-cert-http01.sh` (4 bugs) + `.github/workflows/deploy.yml` (CI Node
+- **`issue-letsencrypt-cert-http01.sh` (6 bugs) + `.github/workflows/deploy.yml` (CI Node
   alignment + native rebuild) — everything caught during the 2026-05-31 prod bringup that
   previously needed manual workarounds on every run.**
   - *acme.sh installer flag dropped upstream* (`Unknown parameter: ----install-online`): the
@@ -130,6 +130,26 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
     suppression so any failure surfaces in acme.sh's output (and in cron emails at renewal
     time). acme.sh persists `--reloadcmd` per-domain, so re-running `--install-cert` (which
     this script does on every invocation) updates the value for all future renewals.
+  - *Staging cert silently re-installed when re-running against prod* (the trap that left
+    Adrien's Node serving `O=Let's Encrypt, CN=YE2` — a staging intermediate — even after
+    a prod re-issue with `--force`): acme.sh keeps per-domain state in
+    `<acme_home>/<domain>_ecc/` regardless of CA endpoint. When you iterate with
+    `--staging` then switch to prod, the stale staging leaf sometimes survives
+    `--install-cert` and Node ends up serving it. Browsers reject; `openssl verify` fails
+    with `error 20 at 0 depth lookup: unable to get local issuer certificate`. The script
+    now reads `Le_API` from the per-domain conf BEFORE the issue step; if it points at
+    `acme-staging-v02` while the script is about to issue against `acme-v02` (or vice
+    versa), the per-domain dir is wiped via `--remove -d <host> --ecc` + `rm -rf`. The
+    acme.sh install and the account stay intact — only the per-domain cert tracking is
+    reset. Idempotent: a same-endpoint re-run does nothing.
+  - *No post-install sanity check, so a bad install was silent*: after `--install-cert`
+    the script now prints `subject / issuer / dates` of the installed cert and runs
+    `openssl verify -CAfile <system bundle>` against the leaf. For a prod cert,
+    verification MUST pass (otherwise the script `exit 1`s with the exact recovery
+    command). For a staging cert (intermediates not in any OS trust store), verification
+    failure is tolerated. System CA bundle is auto-detected across the three common paths
+    (Debian, RHEL, Alpine). Catches the staging-survives-prod scenario above + any other
+    silent install corruption before the operator has to discover it via a browser warning.
 - **`.github/workflows/deploy.yml` — CI Node version aligned with the Pi's runtime + force
   rebuild of native modules after install.** Every release deploy was leaving the
   `better-sqlite3` native compiled for the wrong Node ABI, then PM2 silently crashed on
